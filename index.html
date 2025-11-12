@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -283,32 +283,6 @@
             font-weight: 500;
         }
         
-        .test-button {
-            display: block;
-            margin: 10px auto;
-            padding: 12px 24px;
-            background: #ff6b6b;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 16px;
-            font-weight: 600;
-            transition: background 0.3s;
-        }
-        
-        .test-button:hover {
-            background: #ff5252;
-        }
-        
-        .test-button.success {
-            background: #10b981;
-        }
-        
-        .test-button.success:hover {
-            background: #0da271;
-        }
-        
         footer {
             background: var(--dark);
             color: white;
@@ -432,15 +406,6 @@
             <button class="cta-button" id="startChatBtn">Start Conversation</button>
         </section>
 
-        <!-- Test Buttons -->
-        <button class="test-button" onclick="testScriptURL()">
-            Test Apps Script Connection
-        </button>
-        
-        <button class="test-button success" onclick="testFormSubmission()">
-            Test Form Submission
-        </button>
-
         <section class="chat-container" id="chatContainer" style="display: none;">
             <div class="chat-header">
                 <h2>Vectorneu Assistant</h2>
@@ -544,7 +509,7 @@
     </footer>
 
     <script>
-        // Use your actual Google Apps Script URL
+        // Replace with your actual Google Apps Script URL
         const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwGoaJE1r2KbgOMe-l6dwIJiU-VMIuJE77QT-7IptJ9obWY2PORwjhJlyF9p4w_u9mS5g/exec';
         
         // DOM Elements
@@ -560,114 +525,6 @@
         const formLoading = document.getElementById('formLoading');
         const successMessage = document.getElementById('successMessage');
         const errorMessage = document.getElementById('errorMessage');
-
-        // Test function to check if your Apps Script is working
-        async function testScriptURL() {
-            try {
-                console.log('Testing Apps Script URL:', SCRIPT_URL);
-                
-                // Show loading
-                formLoading.style.display = 'block';
-                formLoading.textContent = 'Testing connection to Apps Script...';
-                successMessage.style.display = 'none';
-                errorMessage.style.display = 'none';
-                
-                // Test with a simple GET request
-                const response = await fetch(SCRIPT_URL);
-                console.log('Response status:', response.status);
-                
-                const data = await response.json();
-                console.log('Test response data:', data);
-                
-                // Hide loading
-                formLoading.style.display = 'none';
-                
-                if (data && data.success) {
-                    successMessage.textContent = '✅ SUCCESS: Apps Script is working! ' + (data.message || '');
-                    successMessage.style.display = 'block';
-                    console.log('✅ Apps Script test passed');
-                } else {
-                    errorMessage.textContent = '❌ Apps Script responded but with error: ' + (data.message || 'Unknown error');
-                    errorMessage.style.display = 'block';
-                    console.log('❌ Apps Script test failed with data:', data);
-                }
-            } catch (error) {
-                console.error('Test failed with error:', error);
-                
-                // Hide loading
-                formLoading.style.display = 'none';
-                
-                // Show detailed error
-                let errorText = '❌ Apps Script test failed: ';
-                
-                if (error.name === 'TypeError') {
-                    errorText += 'Network error or CORS issue. Check: 1) URL is correct, 2) Deployment is "Anyone", 3) No browser extensions blocking requests';
-                } else if (error.message.includes('Failed to fetch')) {
-                    errorText += 'Cannot connect to Apps Script. URL might be wrong or deployment not published.';
-                } else {
-                    errorText += error.message;
-                }
-                
-                errorMessage.textContent = errorText;
-                errorMessage.style.display = 'block';
-            }
-        }
-
-        // Test form submission
-        async function testFormSubmission() {
-            try {
-                console.log('=== TESTING FORM SUBMISSION ===');
-                
-                // Test data
-                const testData = {
-                    fullName: 'Test User',
-                    companyName: 'Test Company', 
-                    email: 'test@example.com',
-                    purpose: 'AI Solutions Consultation',
-                    date: '2024-12-31',
-                    time: '10:00 - 10:30',
-                    additionalInfo: 'This is a test submission'
-                };
-
-                console.log('Sending test data:', testData);
-
-                // Show loading
-                formLoading.style.display = 'block';
-                formLoading.textContent = 'Testing form submission...';
-                successMessage.style.display = 'none';
-                errorMessage.style.display = 'none';
-
-                // Send test data
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams(testData)
-                });
-                
-                console.log('Response status:', response.status);
-                const data = await response.json();
-                console.log('Form submission response:', data);
-                
-                formLoading.style.display = 'none';
-                
-                if (data.success) {
-                    successMessage.textContent = '✅ FORM TEST PASSED: ' + data.message + (data.meetLink ? '\nMeet Link: ' + data.meetLink : '');
-                    successMessage.style.display = 'block';
-                    console.log('✅ Form test passed');
-                } else {
-                    errorMessage.textContent = '❌ FORM TEST FAILED: ' + data.message;
-                    errorMessage.style.display = 'block';
-                    console.log('❌ Form test failed');
-                }
-            } catch (error) {
-                console.error('Form test error:', error);
-                formLoading.style.display = 'none';
-                errorMessage.textContent = '❌ FORM TEST ERROR: ' + error.message;
-                errorMessage.style.display = 'block';
-            }
-        }
 
         // Initialize the chat
         startChatBtn.addEventListener('click', function() {
@@ -791,6 +648,11 @@
                 return;
             }
             
+            if (lowerMessage.includes('pricing') || lowerMessage.includes('cost')) {
+                addBotMessage("Our pricing starts at ₹15,000 for basic chatbot solutions. Would you like to schedule a consultation to discuss your specific needs?");
+                return;
+            }
+            
             addBotMessage("I'd be happy to help you learn more. For detailed information, I recommend scheduling an appointment with our team.");
         }
         
@@ -798,11 +660,8 @@
         bookingForm.addEventListener('submit', function(e) {
             e.preventDefault();
             
-            console.log('Form submitted - starting processing...');
-            
-            // Show loading, hide messages
+            // Show loading
             formLoading.style.display = 'block';
-            formLoading.textContent = 'Processing your appointment...';
             successMessage.style.display = 'none';
             errorMessage.style.display = 'none';
             
@@ -817,65 +676,41 @@
                 additionalInfo: document.getElementById('additionalInfo').value
             };
 
-            console.log('Form data collected:', formData);
-
-            // Validate required fields
-            if (!formData.email || !formData.fullName || !formData.date || !formData.time) {
+            // Validate
+            if (!formData.email || !formData.fullName) {
                 formLoading.style.display = 'none';
-                errorMessage.textContent = 'Please fill all required fields (Name, Email, Date, Time)';
+                errorMessage.textContent = 'Please enter name and email';
                 errorMessage.style.display = 'block';
                 return;
             }
 
-            console.log('Sending to:', SCRIPT_URL);
-            console.log('Sending data:', formData);
-            
-            // Send data to Google Apps Script using fetch
+            // Send to Apps Script
             fetch(SCRIPT_URL, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
                 body: new URLSearchParams(formData)
             })
-            .then(response => {
-                console.log('Response status:', response.status);
-                return response.json();
-            })
+            .then(response => response.json())
             .then(data => {
-                console.log('Response data received:', data);
                 formLoading.style.display = 'none';
                 
                 if (data.success) {
-                    successMessage.textContent = data.message + (data.meetLink ? '\nMeet Link: ' + data.meetLink : '');
+                    successMessage.textContent = data.message + (data.sheetUrl ? '\nSheet: ' + data.sheetUrl : '');
                     successMessage.style.display = 'block';
                     bookingForm.reset();
-                    
-                    // Add success message to chat
-                    addBotMessage("Great! Your appointment has been scheduled. You should receive a confirmation email with Google Meet link shortly.");
+                    addBotMessage("Appointment booked! Check your sheet.");
                 } else {
-                    errorMessage.textContent = data.message || 'An error occurred';
+                    errorMessage.textContent = data.message;
                     errorMessage.style.display = 'block';
-                    
-                    // Add error message to chat
-                    addBotMessage("I'm sorry, there was an issue scheduling your appointment. Please try again or contact us directly.");
+                    addBotMessage("Booking failed. Please try again.");
                 }
             })
             .catch(error => {
-                console.error('Fetch error:', error);
                 formLoading.style.display = 'none';
-                errorMessage.textContent = 'Network error: ' + error.message;
+                errorMessage.textContent = 'Network error';
                 errorMessage.style.display = 'block';
-                
-                // Add error message to chat
-                addBotMessage("I'm sorry, there was a network issue. Please try again or contact us directly.");
             });
         });
-
-        // Debug info
-        console.log('=== VECTORNEU DEBUG INFO ===');
-        console.log('Script URL:', SCRIPT_URL);
-        console.log('Test functions available: testScriptURL(), testFormSubmission()');
     </script>
 </body>
 </html>

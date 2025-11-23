@@ -1,1809 +1,1651 @@
-// ========== CONFIGURATION ==========
-const SPREADSHEET_ID = '13CgX9qWEQE9VjfU_gd1f1gXpdHQ4dMPKEpurjLCNE4I';
-const CALENDAR_ID = 'primary';
-const SENDER_EMAIL = 'vectorneu05@gmail.com';
-const KNOWLEDGE_FOLDER_ID = '1kHzUrPYarHxdzg0gKraJ738vfPF2PhBQ';
-const GROQ_API_KEY = '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';
-
-// ========== KNOWLEDGE BASE CONFIG ==========
-const KNOWLEDGE_FILE_TYPES = [
-  'application/vnd.google-apps.document',
-  'application/vnd.google-apps.spreadsheet', 
-  'text/plain',
-  'application/pdf'
-];
-
-// ========== SYSTEM PROMPT ==========
-const SYSTEM_PROMPT = `You are VectorAI - the official AI assistant for Vectorneu Solutions, an AI Chatbot & Automation Company based in Coimbatore, Tamil Nadu.
-
-**COMPANY INFORMATION:**
-- **Business:** AI Chatbot Development, Business Process Automation & AI Solutions
-- **Location:** Coimbatore, Tamil Nadu  
-- **Contact:** +91 9488005400 | vectorneu05@gmail.com
-- **Core Services:**
-  🤖 Custom Chatbot Development
-  ⚡ Business Automation & Workflow Optimization
-  🎯 AI Consulting & Custom AI Solutions
-  📊 Intelligent Data & Analytics
-
-**RESPONSE GUIDELINES:**
-- Keep responses SHORT and CONCISE (1-3 sentences maximum)
-- Be professional, friendly, and helpful
-- Always address the user's question directly first
-- Use emojis sparingly only when they add value
-- Redirect unrelated queries gently to company services
-
-**KEY SCENARIOS:**
-- **Appointment Requests:** Show booking form immediately
-- **Service Inquiries:** Provide specific examples and benefits
-- **Pricing Questions:** Explain custom pricing and suggest consultation
-- **General Info:** Share relevant company details briefly
-
-**IMPORTANT RULES:**
-- ONLY use provided company information - never fabricate details
-- Always maintain professional tone while being helpful
-- Guide users toward next steps (consultation, booking, contact)
-- Be proactive in offering assistance
-
-**GOAL:** Provide accurate, concise responses that help users understand services and take action.`;
-
-// ========== MAIN HTTP HANDLER ==========
-function doGet(e) {
-  return handleRequest(e);
-}
-
-function doPost(e) {
-  try {
-    // Process your data
-    const result = processRequest(e);
-    
-    // Return JSON response
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true,
-      data: result
-    })).setMimeType(ContentService.MimeType.JSON);
-    
-  } catch (error) {
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      error: error.message
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function handleRequest(e) {
-  try {
-    const params = (e && e.parameter) || {};
-    const callback = params.callback || '';
-    const action = params.action || '';
-    
-    console.log('🔄 Action:', action, 'Parameters:', Object.keys(params));
-    
-    let response;
-    
-    switch(action) {
-      case 'message':
-        response = handleChatMessage(params.message);
-        break;
-      case 'bookAppointment':
-        response = handleAppointmentBooking(params);
-        break;
-      case 'rescheduleAppointment':
-        response = handleRescheduleAppointment(params);
-        break;
-      case 'test':
-        response = { 
-          success: true, 
-          message: 'Hello! I\'m VectorAI 🤖\nYour assistant for AI chatbots & automation.\nHow can I help you today?' 
-        };
-        break;
-      default:
-        response = { 
-          success: true, 
-          message: 'Vectorneu AI Assistant is running!',
-          available_actions: [
-            'message - Chat with the AI',
-            'bookAppointment - Schedule an appointment', 
-            'rescheduleAppointment - Reschedule appointment',
-            'test - Test server connection'
-          ]
-        };
-    }
-    
-    if (callback) {
-      return ContentService.createTextOutput(callback + '(' + JSON.stringify(response) + ')')
-        .setMimeType(ContentService.MimeType.JAVASCRIPT);
-    } else {
-      return ContentService.createTextOutput(JSON.stringify(response))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-    
-  } catch (error) {
-    console.error('❌ Handler error:', error);
-    
-    const errorResponse = {
-      success: false,
-      error: 'Server error',
-      message: error.toString()
-    };
-    
-    const callback = (e && e.parameter && e.parameter.callback) || '';
-    if (callback) {
-      return ContentService.createTextOutput(callback + '(' + JSON.stringify(errorResponse) + ')')
-        .setMimeType(ContentService.MimeType.JAVASCRIPT);
-    } else {
-      return ContentService.createTextOutput(JSON.stringify(errorResponse))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-  }
-}
-// ========== SMART CHAT HANDLER ==========
-function handleChatMessage(userMessage) {
-  try {
-    if (!userMessage || userMessage.trim().length < 2) {
-      return {
-        response: "Hi! I'm VectorAI 🤖 How can I help with our AI services today?",
-        showAppointmentForm: false
-      };
-    }
-    
-    const message = userMessage.toLowerCase().trim();
-    
-    // Check for quick responses first
-    const quickResponse = getQuickResponse(message);
-    if (quickResponse) {
-      return quickResponse;
-    }
-    
-    // Use Groq AI for intelligent responses
-    const aiResponse = getAIResponseWithKnowledge(message);
-    
-    return {
-      response: aiResponse.response,
-      showAppointmentForm: aiResponse.showAppointmentForm || false
-    };
-    
-  } catch (error) {
-    console.error('❌ Chat error:', error);
-    return {
-      response: "I'd love to help with Vectorneu's AI services! What would you like to know?",
-      showAppointmentForm: false
-    };
-  }
-}
-
-function getQuickResponse(message) {
-  const quickMap = {
-    'hi|hello|hey': "Hello! 👋 I'm VectorAI. How can I assist with our AI services today?",
-    'appointment|book|schedule|meeting': {
-      response: "Great! Let's get you scheduled 🗓️ I'll show the booking form now.",
-      showAppointmentForm: true
-    },
-    'reschedule|change appointment': {
-      response: "I can help you reschedule your appointment. Please use the Reschedule button below.",
-      showAppointmentForm: false
-    },
-    'service|offer|do what': "We build AI chatbots & automation solutions! 🤖 Custom AI, business automation, consulting.",
-    'contact|email|phone|number': "📞 +91 9488005400\n✉️ vectorneu05@gmail.com\n🕘 Mon-Fri 9AM-6PM",
-    'price|cost|how much': "Pricing is customized per project. Book a free consultation for accurate quotes!",
-    'where|location|based': "We're based in Coimbatore! 🏙️ Serving clients worldwide.",
-    'chatbot|ai assistant': "We build intelligent chatbots for customer service, sales, and support! 24/7 automated conversations.",
-    'thanks|thank you': "You're welcome! 😊 Let me know if you need anything else.",
-    'bye|goodbye': "Goodbye! 👋 Feel free to reach out if you need AI solutions!"
-  };
-  
-  for (const [pattern, response] of Object.entries(quickMap)) {
-    if (new RegExp(pattern).test(message)) {
-      return typeof response === 'string' ? { response } : response;
-    }
-  }
-  
-  return null;
-}
-
-// ========== GROQ AI WITH KNOWLEDGE BASE ==========
-function getAIResponseWithKnowledge(userMessage) {
-  try {
-    console.log('🧠 Processing with AI and Knowledge Base...');
-    
-    const knowledgeContext = getRelevantKnowledge(userMessage);
-    
-    const prompt = `${SYSTEM_PROMPT}
-
-**Current Knowledge Context:**
-${knowledgeContext}
-
-**User Message:** "${userMessage}"
-
-**Instructions:**
-- Respond concisely (1-3 sentences max)
-- Use the knowledge context above for accurate information
-- If appointment-related, set showAppointmentForm: true
-- Be helpful and professional`;
-
-    const aiResponse = callGroqAPI(prompt, userMessage);
-    
-    const showForm = shouldShowAppointmentForm(userMessage, aiResponse);
-    
-    return {
-      response: aiResponse,
-      showAppointmentForm: showForm
-    };
-    
-  } catch (error) {
-    console.error('❌ AI response error:', error);
-    return {
-      response: "I specialize in AI chatbots and automation solutions! How can I assist you today?",
-      showAppointmentForm: false
-    };
-  }
-}
-
-function callGroqAPI(prompt, userMessage) {
-  try {
-    const payload = {
-      messages: [
-        {
-          role: "system",
-          content: prompt
-        },
-        {
-          role: "user", 
-          content: userMessage
-        }
-      ],
-      model: "llama-3.1-8b-instant",
-      temperature: 0.7,
-      max_tokens: 200,
-      stream: false
-    };
-    
-    const options = {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${GROQ_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    };
-    
-    const response = UrlFetchApp.fetch("https://api.groq.com/openai/v1/chat/completions", options);
-    const data = JSON.parse(response.getContentText());
-    
-    if (data.choices && data.choices[0]) {
-      return data.choices[0].message.content.trim();
-    } else {
-      throw new Error('Invalid response from Groq API');
-    }
-    
-  } catch (error) {
-    console.error('❌ Groq API error:', error);
-    throw error;
-  }
-}
-
-function shouldShowAppointmentForm(message, response) {
-  const appointmentKeywords = [
-    'appointment', 'book', 'schedule', 'meeting', 'consult', 
-    'demo', 'call', 'reserve', 'calendar'
-  ];
-  
-  return appointmentKeywords.some(keyword => 
-    message.toLowerCase().includes(keyword) || 
-    response.toLowerCase().includes(keyword)
-  );
-}
-
-// ========== KNOWLEDGE BASE FUNCTIONS ==========
-function getRelevantKnowledge(query) {
-  try {
-    console.log('🔍 Searching knowledge base for:', query);
-    
-    const folder = DriveApp.getFolderById(KNOWLEDGE_FOLDER_ID);
-    if (!folder) {
-      return "No knowledge base folder found.";
-    }
-    
-    const files = folder.getFiles();
-    let knowledgeContent = "";
-    let fileCount = 0;
-    
-    while (files.hasNext() && fileCount < 5) {
-      const file = files.next();
-      
-      if (KNOWLEDGE_FILE_TYPES.includes(file.getMimeType())) {
-        try {
-          const content = extractFileContent(file);
-          if (content && content.length > 0) {
-            knowledgeContent += `\n--- ${file.getName()} ---\n${content.substring(0, 1000)}...\n`;
-            fileCount++;
-          }
-        } catch (fileError) {
-          console.log('⚠️ Could not read file:', file.getName(), fileError);
-        }
-      }
-    }
-    
-    if (knowledgeContent.length === 0) {
-      return "No knowledge files found in the drive folder.";
-    }
-    
-    console.log(`✅ Found ${fileCount} knowledge files`);
-    return knowledgeContent;
-    
-  } catch (error) {
-    console.error('❌ Knowledge base error:', error);
-    return "Knowledge base currently unavailable.";
-  }
-}
-
-function extractFileContent(file) {
-  try {
-    const mimeType = file.getMimeType();
-    
-    switch(mimeType) {
-      case 'application/vnd.google-apps.document':
-        return DocumentApp.openById(file.getId()).getBody().getText();
-        
-      case 'application/vnd.google-apps.spreadsheet':
-        const sheet = SpreadsheetApp.openById(file.getId()).getSheets()[0];
-        const data = sheet.getDataRange().getValues();
-        return data.slice(0, 10).map(row => row.join(', ')).join('\n');
-        
-      case 'text/plain':
-        return file.getBlob().getDataAsString();
-        
-      case 'application/pdf':
-        return "PDF content: " + file.getName();
-        
-      default:
-        return `File: ${file.getName()} (${mimeType})`;
-    }
-  } catch (error) {
-    console.error('Error extracting file content:', error);
-    return null;
-  }
-}
-
-function refreshKnowledgeBase() {
-  try {
-    console.log('🔄 Refreshing knowledge base...');
-    
-    const folder = DriveApp.getFolderById(KNOWLEDGE_FOLDER_ID);
-    const files = folder.getFiles();
-    
-    let summary = {
-      totalFiles: 0,
-      processedFiles: 0,
-      fileTypes: {}
-    };
-    
-    while (files.hasNext()) {
-      const file = files.next();
-      summary.totalFiles++;
-      const mimeType = file.getMimeType();
-      
-      if (!summary.fileTypes[mimeType]) {
-        summary.fileTypes[mimeType] = 0;
-      }
-      summary.fileTypes[mimeType]++;
-      
-      if (KNOWLEDGE_FILE_TYPES.includes(mimeType)) {
-        summary.processedFiles++;
-      }
-    }
-    
-    return {
-      success: true,
-      message: `✅ Knowledge base refreshed! ${summary.processedFiles}/${summary.totalFiles} files available.`,
-      summary: summary
-    };
-    
-  } catch (error) {
-    console.error('❌ Knowledge base refresh error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// ========== APPOINTMENT SYSTEM ==========
-function handleAppointmentBooking(params) {
-  try {
-    console.log('📅 Starting appointment booking...');
-    
-    if (!params.fullName || params.fullName.trim().length < 2) {
-      return { success: false, message: 'Please enter your full name' };
-    }
-    
-    if (!params.email || !params.email.includes('@')) {
-      return { success: false, message: 'Please enter a valid email address' };
-    }
-    
-    if (!params.date || !params.time) {
-      return { success: false, message: 'Please select date and time' };
-    }
-    
-    const bookingData = {
-      fullName: params.fullName.trim(),
-      email: params.email.trim(),
-      companyName: (params.companyName || '').trim(),
-      purpose: params.purpose || 'AI Consultation',
-      date: params.date,
-      time: params.time,
-      duration: parseInt(params.duration) || 60,
-      additionalInfo: (params.additionalInfo || '').trim()
-    };
-    
-    console.log('✅ Data validated:', bookingData.fullName);
-    
-    // Try to create calendar event
-    let calendarResult = { success: false };
-    try {
-      calendarResult = createCalendarEvent(bookingData);
-      console.log('📅 Calendar result:', calendarResult);
-    } catch (calendarError) {
-      console.log('⚠️ Calendar creation failed, but continuing:', calendarError);
-    }
-    
-    // Save to spreadsheet
-    const sheetResult = saveToSpreadsheet(bookingData);
-    if (!sheetResult.success) {
-      return { success: false, message: 'Failed to save appointment: ' + sheetResult.error };
-    }
-    
-    // Try to send email
-    let emailResult = { success: false };
-    try {
-      emailResult = sendConfirmationEmail(bookingData);
-      console.log('📧 Email result:', emailResult);
-    } catch (emailError) {
-      console.log('⚠️ Email sending failed:', emailError);
-    }
-    
-    console.log('🎉 Appointment processed successfully!');
-    
-    return {
-      success: true,
-      message: '✅ Appointment booked successfully!' + (emailResult.success ? ' Confirmation email sent.' : ''),
-      appointmentId: sheetResult.appointmentId,
-      emailSent: emailResult.success,
-      calendarCreated: calendarResult.success
-    };
-    
-  } catch (error) {
-    console.error('❌ Booking error:', error);
-    return { success: false, message: 'Booking failed: ' + error.message };
-  }
-}
-
-function createCalendarEvent(bookingData) {
-  try {
-    console.log('📅 Creating calendar event...');
-    
-    const calendar = CalendarApp.getCalendarById(CALENDAR_ID);
-    if (!calendar) {
-      console.log('❌ Calendar not found');
-      return { success: false, error: 'Calendar not found' };
-    }
-    
-    // Parse date and time
-    const [year, month, day] = bookingData.date.split('-').map(Number);
-    const [hours, minutes] = bookingData.time.split(':').map(Number);
-    
-    const startTime = new Date(year, month - 1, day, hours, minutes);
-    const endTime = new Date(startTime.getTime() + bookingData.duration * 60000);
-    
-    console.log('⏰ Event time:', { start: startTime, end: endTime });
-    
-    const eventTitle = `Vectorneu Appointment: ${bookingData.fullName}`;
-    const eventDescription = `
-Client: ${bookingData.fullName}
-Email: ${bookingData.email}
-Company: ${bookingData.companyName || 'N/A'}
-Purpose: ${bookingData.purpose}
-Duration: ${bookingData.duration} minutes
-
-Additional Info: ${bookingData.additionalInfo || 'None'}
-
-Booked via Vectorneu AI Assistant
-Contact: ${SENDER_EMAIL} | +91 9488005400
-    `.trim();
-    
-    const event = calendar.createEvent(
-      eventTitle,
-      startTime,
-      endTime,
-      {
-        description: eventDescription,
-        guests: bookingData.email,
-        sendInvites: true
-      }
-    );
-    
-    console.log('✅ Calendar event created:', event.getId());
-    
-    return {
-      success: true,
-      eventId: event.getId()
-    };
-    
-  } catch (error) {
-    console.error('❌ Calendar event creation failed:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-function saveToSpreadsheet(bookingData) {
-  try {
-    console.log('📊 Saving to spreadsheet...');
-    
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    let sheet = spreadsheet.getSheetByName('Appointments');
-    
-    if (!sheet) {
-      sheet = spreadsheet.insertSheet('Appointments');
-      const headers = ['Timestamp', 'Name', 'Email', 'Company', 'Purpose', 'Date', 'Time', 'Duration', 'Status', 'Appointment ID'];
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      console.log('✅ Created new sheet with headers');
-    }
-    
-    const appointmentId = 'VEC-' + Utilities.getUuid().substring(0, 8).toUpperCase();
-    const timestamp = new Date();
-    
-    const rowData = [
-      timestamp,
-      bookingData.fullName,
-      bookingData.email,
-      bookingData.companyName || '',
-      bookingData.purpose,
-      bookingData.date,
-      bookingData.time,
-      bookingData.duration,
-      'Confirmed',
-      appointmentId
-    ];
-    
-    sheet.appendRow(rowData);
-    console.log('✅ Saved to spreadsheet, row:', sheet.getLastRow());
-    
-    return {
-      success: true,
-      appointmentId: appointmentId
-    };
-    
-  } catch (error) {
-    console.error('❌ Spreadsheet error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-function sendConfirmationEmail(bookingData) {
-  try {
-    console.log('📧 Sending confirmation email...');
-    
-    const subject = '✅ Appointment Confirmed - Vectorneu Solutions';
-    
-    const htmlBody = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vectorneu - AI Solutions</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
     <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .header { background: #2563eb; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; }
-        .details { background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0; }
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #7c3aed;
+            --light: #f8fafc;
+            --dark: #1e293b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --gray: #64748b;
+            --gray-light: #e2e8f0;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #f1f5f9;
+            color: var(--dark);
+            line-height: 1.6;
+        }
+        
+        /* Floating Chat Bot */
+        .chat-bot-icon {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.3);
+            z-index: 1000;
+            transition: all 0.3s ease;
+            border: 3px solid white;
+        }
+        
+        .chat-bot-icon:hover {
+            transform: scale(1.1);
+            box-shadow: 0 12px 30px rgba(37, 99, 235, 0.4);
+        }
+        
+        .chat-bot-icon i {
+            font-size: 28px;
+            color: white;
+        }
+        
+        .chat-bot-icon .notification {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            width: 20px;
+            height: 20px;
+            background: var(--error);
+            border-radius: 50%;
+            border: 2px solid white;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
+        }
+        
+        /* Chat Container */
+        .chat-container {
+            position: fixed;
+            bottom: 120px;
+            right: 30px;
+            width: 400px;
+            height: 600px;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+            z-index: 999;
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            border: 1px solid var(--gray-light);
+        }
+        
+        .chat-container.active {
+            display: flex;
+            animation: slideUp 0.3s ease;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .chat-header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            position: relative;
+        }
+        
+        .chat-header .logo-img {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            object-fit: cover;
+            border: 2px solid white;
+        }
+        
+        .chat-header-info {
+            flex: 1;
+        }
+        
+        .chat-header-info h2 {
+            font-size: 18px;
+            margin-bottom: 4px;
+        }
+        
+        .chat-header-info p {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+        
+        .header-actions {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .header-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+        }
+        
+        .header-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .refresh-btn {
+            position: relative;
+        }
+        
+        .refresh-btn.loading i {
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .close-chat {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            transition: background 0.3s;
+        }
+        
+        .close-chat:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        /* Voice Assistant Toggle - SIMPLIFIED */
+        .voice-toggle-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 50%;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 36px;
+            height: 36px;
+        }
+        
+        .voice-toggle-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .voice-toggle-btn.muted {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background: #f8fafc;
+        }
+        
+        .message {
+            display: flex;
+            gap: 12px;
+            max-width: 100%;
+        }
+        
+        .message.user {
+            flex-direction: row-reverse;
+        }
+        
+        .avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            flex-shrink: 0;
+            object-fit: cover;
+        }
+        
+        .bot-avatar {
+            background: white;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 2px solid var(--primary);
+            padding: 2px;
+        }
+        
+        .logo-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--primary);
+        }
+        
+        .user-avatar {
+            background: var(--success);
+            color: white;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            line-height: 1.4;
+            position: relative;
+        }
+        
+        .bot-message .message-content {
+            background: white;
+            border: 1px solid var(--gray-light);
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        .user-message .message-content {
+            background: var(--primary);
+            color: white;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+        }
+        
+        .chat-input-container {
+            padding: 20px;
+            border-top: 1px solid var(--gray-light);
+            background: white;
+        }
+        
+        .chat-input-wrapper {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--gray-light);
+            border-radius: 25px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .chat-input:focus {
+            border-color: var(--primary);
+        }
+        
+        .send-button {
+            width: 44px;
+            height: 44px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .send-button:hover {
+            background: var(--primary-dark);
+        }
+        
+        .send-button i {
+            font-size: 16px;
+        }
+        
+        .voice-button {
+            width: 44px;
+            height: 44px;
+            background: var(--success);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .voice-button:hover {
+            background: #0da271;
+        }
+        
+        .voice-button.listening {
+            background: var(--error);
+            animation: pulse 1s infinite;
+        }
+        
+        .voice-button.listening:hover {
+            background: #dc2626;
+        }
+        
+        /* Appointment Form */
+        .appointment-form {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 10px 20px;
+            border: 1px solid var(--gray-light);
+            display: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            position: relative;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .appointment-form.active {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        /* Reschedule Form */
+        .reschedule-form {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 10px 20px;
+            border: 1px solid var(--gray-light);
+            display: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            position: relative;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .reschedule-form.active {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .form-title {
+            margin-bottom: 20px;
+            color: var(--primary);
+            text-align: center;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            font-size: 14px;
+            color: var(--dark);
+        }
+        
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--gray-light);
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.3s;
+            background: white;
+        }
+        
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+        
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+        
+        .form-row .form-group {
+            flex: 1;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 20px;
+            padding-bottom: 10px;
+        }
+        
+        .submit-btn, .cancel-btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .submit-btn {
+            background: var(--primary);
+            color: white;
+        }
+        
+        .submit-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+        
+        .submit-btn:disabled {
+            background: var(--gray);
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .cancel-btn {
+            background: var(--gray-light);
+            color: var(--dark);
+        }
+        
+        .cancel-btn:hover {
+            background: var(--gray);
+            color: white;
+        }
+        
+        .loading, .success-message, .error-message {
+            display: none;
+            text-align: center;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-weight: 500;
+            font-size: 13px;
+        }
+        
+        .loading {
+            background: var(--warning);
+            color: white;
+        }
+        
+        .success-message {
+            background: var(--success);
+            color: white;
+        }
+        
+        .error-message {
+            background: var(--error);
+            color: white;
+        }
+        
+        /* Scroll to Submit Button */
+        .scroll-to-submit {
+            position: sticky;
+            bottom: 10px;
+            float: right;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+            transition: all 0.3s ease;
+            z-index: 10;
+            margin-top: 10px;
+        }
+        
+        .scroll-to-submit:hover {
+            background: var(--primary-dark);
+            transform: scale(1.1);
+        }
+        
+        .scroll-to-submit i {
+            font-size: 16px;
+        }
+        
+        /* Typing Indicator */
+        .typing-indicator {
+            display: none;
+            padding: 12px 16px;
+            background: white;
+            border-radius: 18px;
+            border: 1px solid var(--gray-light);
+            align-self: flex-start;
+            margin-bottom: 10px;
+        }
+        
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--gray);
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0.8); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        
+        /* Quick Actions */
+        .quick-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .quick-action-btn {
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            padding: 8px 12px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        
+        .quick-action-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+        }
+        
+        /* Voice Status */
+        .voice-status {
+            display: none;
+            text-align: center;
+            padding: 8px 12px;
+            background: var(--success);
+            color: white;
+            border-radius: 20px;
+            margin-top: 8px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .voice-status.listening {
+            background: var(--error);
+            animation: pulse 1s infinite;
+        }
+        
+        /* Responsive */
+        @media (max-width: 480px) {
+            .chat-container {
+                width: 100vw;
+                height: 100vh;
+                bottom: 0;
+                right: 0;
+                border-radius: 0;
+            }
+            
+            .chat-bot-icon {
+                bottom: 20px;
+                right: 20px;
+                width: 60px;
+                height: 60px;
+            }
+            
+            .message-content {
+                max-width: 80%;
+            }
+            
+            .header-actions {
+                gap: 5px;
+            }
+            
+            .header-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+            
+            .appointment-form, .reschedule-form {
+                margin: 10px;
+                padding: 15px;
+            }
+            
+            .form-row {
+                flex-direction: column;
+                gap: 0;
+            }
+            
+            .scroll-to-submit {
+                bottom: 5px;
+                right: 5px;
+                width: 35px;
+                height: 35px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>✅ Appointment Confirmed</h1>
-        <p>Vectorneu Solutions - AI & Chatbot Services</p>
+    <!-- Floating Chat Bot Icon -->
+    <div class="chat-bot-icon" id="chatBotIcon">
+        <img src="VECTORNEU LOGO.png" alt="Vectorneu Logo" style="width: 40px; height: 40px; border-radius: 50%; object-fit: cover;" onerror="this.style.display='none'">
+        <div class="notification"></div>
     </div>
-    
-    <div class="content">
-        <h2>Hello ${bookingData.fullName},</h2>
-        <p>Your appointment has been successfully scheduled!</p>
-        
-        <div class="details">
-            <h3>Appointment Details:</h3>
-            <p><strong>Date:</strong> ${bookingData.date}</p>
-            <p><strong>Time:</strong> ${bookingData.time}</p>
-            <p><strong>Duration:</strong> ${bookingData.duration} minutes</p>
-            <p><strong>Purpose:</strong> ${bookingData.purpose}</p>
-            ${bookingData.companyName ? `<p><strong>Company:</strong> ${bookingData.companyName}</p>` : ''}
-        </div>
-        
-        <p>We look forward to discussing your AI needs!</p>
-        
-        <p><strong>Contact us:</strong><br>
-        📧 ${SENDER_EMAIL}<br>
-        📞 +91 9488005400</p>
-    </div>
-</body>
-</html>
-    `.trim();
-    
-    const plainBody = `
-APPOINTMENT CONFIRMED - Vectorneu Solutions
 
-Hello ${bookingData.fullName},
-
-Your appointment has been successfully scheduled.
-
-DATE: ${bookingData.date}
-TIME: ${bookingData.time}  
-DURATION: ${bookingData.duration} minutes
-PURPOSE: ${bookingData.purpose}
-${bookingData.companyName ? `COMPANY: ${bookingData.companyName}` : ''}
-
-We look forward to discussing your AI needs!
-
-Contact: ${SENDER_EMAIL} | +91 9488005400
-    `.trim();
-    
-    GmailApp.sendEmail(
-      bookingData.email,
-      subject,
-      plainBody,
-      {
-        htmlBody: htmlBody,
-        name: 'Vectorneu Solutions',
-        replyTo: SENDER_EMAIL
-      }
-    );
-    
-    console.log('✅ Confirmation email sent to:', bookingData.email);
-    return { success: true };
-    
-  } catch (error) {
-    console.error('❌ Email error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// ========== RESCHEDULE FUNCTIONS ==========
-function generateReferenceId() {
-  const timestamp = new Date().getTime();
-  const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-  return `VEC-${timestamp}-${random}`;
-}
-
-function handleBookAppointment(params) {
-  try {
-    const {
-      fullName,
-      email,
-      companyName = '',
-      purpose,
-      date,
-      time,
-      duration = '60',
-      additionalInfo = ''
-    } = params;
-    
-    // Validate required fields
-    if (!fullName || !email || !purpose || !date || !time) {
-      return ContentService.createTextOutput(JSON.stringify({
-        success: false,
-        message: 'All required fields must be filled'
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-    
-    // Generate reference ID
-    const referenceId = generateReferenceId();
-    
-    // Create calendar event
-    const calendar = CalendarApp.getDefaultCalendar();
-    const startTime = new Date(`${date}T${time}`);
-    const endTime = new Date(startTime.getTime() + parseInt(duration) * 60000);
-    
-    const eventTitle = `Vectorneu Meeting - ${fullName}`;
-    const eventDescription = `
-Purpose: ${purpose}
-Company: ${companyName}
-Email: ${email}
-Duration: ${duration} minutes
-Reference ID: ${referenceId}
-Additional Info: ${additionalInfo}
-    `.trim();
-    
-    const event = calendar.createEvent(eventTitle, startTime, endTime, {
-      description: eventDescription,
-      guests: email
-    });
-    
-    // Create Google Meet link
-    event.addConference();
-    const meetLink = event.getConference()?.getJoinUrl() || '';
-    
-    // Store appointment in spreadsheet
-    storeAppointmentInSheet({
-      referenceId,
-      fullName,
-      email,
-      companyName,
-      purpose,
-      date,
-      time,
-      duration,
-      additionalInfo,
-      meetLink,
-      status: 'confirmed',
-      createdAt: new Date().toISOString()
-    });
-    
-    // Send confirmation email
-    sendBookingConfirmationEmail(email, fullName, {
-      referenceId,
-      purpose,
-      date,
-      time,
-      duration,
-      meetLink,
-      companyName,
-      additionalInfo
-    });
-    
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true,
-      message: 'Appointment booked successfully!',
-      appointmentId: referenceId,
-      meetLink: meetLink
-    })).setMimeType(ContentService.MimeType.JSON);
-    
-  } catch (error) {
-    console.error('Booking error:', error);
-    return ContentService.createTextOutput(JSON.stringify({
-      success: false,
-      message: 'Failed to book appointment: ' + error.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-
-function handleRescheduleAppointment(params) {
-  try {
-    console.log('🔄 Starting appointment reschedule...', params);
-    
-    const {
-      referenceId,
-      email,
-      newDate,
-      newTime,
-      duration = '60',
-      reason = ''
-    } = params;
-    
-    // Validate required fields
-    if (!referenceId) {
-      return { success: false, message: 'Reference ID is required' };
-    }
-    
-    if (!email || !email.includes('@')) {
-      return { success: false, message: 'Valid email is required' };
-    }
-    
-    if (!newDate || !newTime) {
-      return { success: false, message: 'New date and time are required' };
-    }
-    
-    // Find existing appointment in spreadsheet
-    const appointment = findAppointmentByReferenceId(referenceId);
-    if (!appointment) {
-      return { success: false, message: 'No appointment found with this Reference ID' };
-    }
-    
-    // Verify email matches
-    if (appointment.email !== email) {
-      return { success: false, message: 'Email does not match the appointment record' };
-    }
-    
-    console.log('✅ Found appointment:', appointment.fullName);
-    
-    // Store old appointment details for email
-    const oldAppointmentDetails = {
-      date: appointment.date,
-      time: appointment.time,
-      duration: appointment.duration || '60'
-    };
-    
-    // Update calendar event
-    const calendarResult = updateCalendarEvent(appointment, newDate, newTime, duration, reason);
-    
-    // Update spreadsheet
-    const sheetResult = updateAppointmentInSheet(referenceId, {
-      date: newDate,
-      time: newTime,
-      duration: duration,
-      status: 'rescheduled',
-      rescheduledAt: new Date().toISOString(),
-      rescheduleReason: reason
-    });
-    
-    if (!sheetResult.success) {
-      return { success: false, message: 'Failed to update appointment record: ' + sheetResult.error };
-    }
-    
-    // Prepare appointment details for email
-    const appointmentDetails = {
-      referenceId: referenceId,
-      fullName: appointment.fullName,
-      email: appointment.email,
-      oldDate: oldAppointmentDetails.date,
-      oldTime: oldAppointmentDetails.time,
-      oldDuration: oldAppointmentDetails.duration,
-      newDate: newDate,
-      newTime: newTime,
-      newDuration: duration,
-      reason: reason,
-      meetLink: calendarResult.meetLink || ''
-    };
-    
-    // Send reschedule confirmation email
-    const emailResult = sendRescheduleConfirmationEmail(appointmentDetails);
-    
-    console.log('✅ Appointment rescheduled successfully!');
-    
-    return {
-      success: true,
-      message: '✅ Appointment rescheduled successfully!' + (emailResult.success ? ' Confirmation email sent.' : ''),
-      referenceId: referenceId,
-      emailSent: emailResult.success,
-      calendarUpdated: calendarResult.success,
-      meetLink: calendarResult.meetLink
-    };
-    
-  } catch (error) {
-    console.error('❌ Reschedule error:', error);
-    return { success: false, message: 'Reschedule failed: ' + error.message };
-  }
-}
-
-function sendRescheduleConfirmationEmail(appointmentDetails) {
-  try {
-    console.log('📧 Sending reschedule confirmation email...', appointmentDetails);
-    
-    // Validate required parameters
-    if (!appointmentDetails || !appointmentDetails.email || !appointmentDetails.fullName) {
-      console.error('❌ Missing required appointment details for email');
-      return { success: false, error: 'Missing appointment details' };
-    }
-    
-    const subject = '🔄 Appointment Rescheduled - Vectorneu Solutions';
-    
-    const htmlBody = `
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .header { background: #f59e0b; color: white; padding: 20px; text-align: center; }
-        .content { padding: 20px; }
-        .details { background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0; }
-        .change-highlight { background: #fff7ed; padding: 10px; border-radius: 6px; margin: 10px 0; }
-        .button { background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; }
-    </style>
-</head>
-<body>
-    <div class="header">
-        <h1>🔄 Appointment Rescheduled</h1>
-        <p>Vectorneu Solutions - AI & Chatbot Services</p>
-    </div>
-    
-    <div class="content">
-        <h2>Hello ${appointmentDetails.fullName},</h2>
-        <p>Your appointment has been successfully rescheduled!</p>
-        
-        <div class="details">
-            <h3>📅 New Appointment Details:</h3>
-            <p><strong>Reference ID:</strong> ${appointmentDetails.referenceId}</p>
-            <p><strong>New Date:</strong> ${appointmentDetails.newDate}</p>
-            <p><strong>New Time:</strong> ${appointmentDetails.newTime}</p>
-            <p><strong>Duration:</strong> ${appointmentDetails.newDuration} minutes</p>
-            
-            <div class="change-highlight">
-                <h4>Previous Timing:</h4>
-                <p>Date: ${appointmentDetails.oldDate}<br>
-                Time: ${appointmentDetails.oldTime}<br>
-                Duration: ${appointmentDetails.oldDuration} minutes</p>
+    <!-- Chat Container -->
+    <div class="chat-container" id="chatContainer">
+        <div class="chat-header">
+            <img src="VECTORNEU LOGO.png" alt="Vectorneu Logo" class="logo-img" onerror="this.style.display='none'">
+            <div class="chat-header-info">
+                <h2>Vectorneu Assistant</h2>
+                <p>Online • Ready to help</p>
             </div>
             
-            ${appointmentDetails.reason ? `<p><strong>Reschedule Reason:</strong> ${appointmentDetails.reason}</p>` : ''}
+            <div class="header-actions">
+                <!-- Voice Toggle Button - SIMPLIFIED -->
+                <button class="voice-toggle-btn" id="voiceToggleBtn" title="Toggle Voice Assistant">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+                
+                <button class="header-btn refresh-btn" id="refreshBtn" title="Start New Conversation">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+                <button class="header-btn close-chat" id="closeChat" title="Close Chat">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
         </div>
-
-        ${appointmentDetails.meetLink ? `
-        <div class="details">
-            <h3>🔗 Updated Meeting Link:</h3>
-            <a href="${appointmentDetails.meetLink}" class="button">Join Google Meet</a>
-            <p style="font-size: 12px; color: #666;">Or copy this link: ${appointmentDetails.meetLink}</p>
-        </div>
-        ` : ''}
-
-        <p>We look forward to connecting with you at the new time!</p>
         
-        <p><strong>Contact us:</strong><br>
-        📧 ${SENDER_EMAIL}<br>
-        📞 +91 9488005400</p>
-    </div>
-</body>
-</html>
-    `.trim();
-    
-    const plainBody = `
-APPOINTMENT RESCHEDULED - VECTORNEU SOLUTIONS
-
-Hello ${appointmentDetails.fullName},
-
-Your appointment has been successfully rescheduled.
-
-NEW APPOINTMENT DETAILS:
-Reference ID: ${appointmentDetails.referenceId}
-New Date: ${appointmentDetails.newDate}
-New Time: ${appointmentDetails.newTime}
-Duration: ${appointmentDetails.newDuration} minutes
-
-PREVIOUS TIMING:
-Date: ${appointmentDetails.oldDate}
-Time: ${appointmentDetails.oldTime}
-Duration: ${appointmentDetails.oldDuration} minutes
-
-${appointmentDetails.reason ? `Reschedule Reason: ${appointmentDetails.reason}` : ''}
-
-${appointmentDetails.meetLink ? `MEETING LINK: ${appointmentDetails.meetLink}` : ''}
-
-We look forward to connecting with you at the new time!
-
-Contact: ${SENDER_EMAIL} | +91 9488005400
-    `.trim();
-    
-    GmailApp.sendEmail(
-      appointmentDetails.email,
-      subject,
-      plainBody,
-      {
-        htmlBody: htmlBody,
-        name: 'Vectorneu Solutions',
-        replyTo: SENDER_EMAIL
-      }
-    );
-    
-    console.log('✅ Reschedule confirmation email sent to:', appointmentDetails.email);
-    return { success: true };
-    
-  } catch (error) {
-    console.error('❌ Reschedule email error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-function sendBookingConfirmationEmail(email, fullName, appointmentDetails) {
-  try {
-    // Validate required parameters
-    if (!email || !fullName || !appointmentDetails) {
-      console.error('Missing required parameters for booking email:', { email, fullName, appointmentDetails });
-      return;
-    }
-    
-    // Validate appointmentDetails structure
-    if (!appointmentDetails.referenceId || !appointmentDetails.date || !appointmentDetails.time) {
-      console.error('Invalid appointmentDetails structure for booking:', appointmentDetails);
-      return;
-    }
-    
-    const subject = `✅ Appointment Confirmed - Vectorneu AI Solutions`;
-    
-    const htmlBody = `
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background: linear-gradient(135deg, #2563eb, #7c3aed); color: white; padding: 20px; text-align: center; border-radius: 10px 10px 0 0; }
-        .content { background: #f8fafc; padding: 20px; border-radius: 0 0 10px 10px; }
-        .details { background: white; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #2563eb; }
-        .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #64748b; }
-        .button { background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin: 10px 0; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🎉 Appointment Confirmed!</h1>
-            <p>Thank you for choosing Vectorneu AI Solutions</p>
+        <div class="chat-messages" id="chatMessages">
+            <!-- Messages will be added here dynamically -->
         </div>
-        <div class="content">
-            <p>Dear <strong>${fullName}</strong>,</p>
-            <p>Your appointment has been successfully scheduled. Here are your appointment details:</p>
+        
+        <!-- Appointment Form -->
+        <div class="appointment-form" id="appointmentForm">
+            <h3 class="form-title">Book Your Appointment</h3>
+            <div class="loading" id="formLoading">Processing your appointment...</div>
+            <div class="success-message" id="successMessage"></div>
+            <div class="error-message" id="errorMessage"></div>
             
-            <div class="details">
-                <h3>📅 Appointment Details</h3>
-                <p><strong>Reference ID:</strong> ${appointmentDetails.referenceId}</p>
-                <p><strong>Purpose:</strong> ${appointmentDetails.purpose || 'Not specified'}</p>
-                <p><strong>Date:</strong> ${formatDateForEmail(appointmentDetails.date)}</p>
-                <p><strong>Time:</strong> ${appointmentDetails.time}</p>
-                <p><strong>Duration:</strong> ${appointmentDetails.duration || '60'} minutes</p>
-                ${appointmentDetails.companyName ? `<p><strong>Company:</strong> ${appointmentDetails.companyName}</p>` : ''}
-                ${appointmentDetails.additionalInfo ? `<p><strong>Additional Info:</strong> ${appointmentDetails.additionalInfo}</p>` : ''}
-            </div>
-
-            ${appointmentDetails.meetLink ? `
-            <div class="details">
-                <h3>🔗 Meeting Link</h3>
-                <p>Join your meeting using the link below:</p>
-                <a href="${appointmentDetails.meetLink}" class="button">Join Google Meet</a>
-                <p style="font-size: 12px; color: #64748b;">Or copy this link: ${appointmentDetails.meetLink}</p>
-            </div>
-            ` : ''}
-
-            <div class="details">
-                <h3>📋 Important Notes</h3>
-                <ul>
-                    <li>Please join the meeting 5 minutes before the scheduled time</li>
-                    <li>Keep your Reference ID (${appointmentDetails.referenceId}) for any future communications</li>
-                    <li>If you need to reschedule, use the Reference ID in our chat</li>
-                    <li>For any queries, reply to this email</li>
-                </ul>
-            </div>
-
-            <p>We look forward to connecting with you!</p>
-            <p>Best regards,<br><strong>The Vectorneu Team</strong></p>
+            <form id="bookingForm">
+                <div class="form-group">
+                    <label for="fullName">Full Name *</label>
+                    <input type="text" id="fullName" name="fullName" required placeholder="Enter your full name">
+                </div>
+                <div class="form-group">
+                    <label for="email">Email Address *</label>
+                    <input type="email" id="email" name="email" required placeholder="Enter your email address">
+                </div>
+                <div class="form-group">
+                    <label for="companyName">Company Name</label>
+                    <input type="text" id="companyName" name="companyName" placeholder="Enter your company name">
+                </div>
+                <div class="form-group">
+                    <label for="purpose">Purpose of Meeting *</label>
+                    <select id="purpose" name="purpose" required>
+                        <option value="">Select a purpose</option>
+                        <option value="AI Solutions Consultation">AI Solutions Consultation</option>
+                        <option value="Chatbot Development">Chatbot Development</option>
+                        <option value="Business Automation">Business Automation</option>
+                        <option value="Partnership Inquiry">Partnership Inquiry</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="appointmentDate">Preferred Date *</label>
+                        <input type="date" id="appointmentDate" name="date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="appointmentTime">Preferred Time *</label>
+                        <input type="time" id="appointmentTime" name="time" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="duration">Duration (minutes)</label>
+                    <select id="duration" name="duration">
+                        <option value="30">30 minutes</option>
+                        <option value="60" selected>60 minutes</option>
+                        <option value="90">90 minutes</option>
+                        <option value="120">120 minutes</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="additionalInfo">Additional Information</label>
+                    <textarea id="additionalInfo" name="additionalInfo" rows="3" placeholder="Any additional details or requirements..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="submit-btn" id="submitBtn">
+                        <i class="fas fa-calendar-check"></i> Book Appointment
+                    </button>
+                    <button type="button" class="cancel-btn" id="cancelAppointmentBtn">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </form>
+            
+            <!-- Scroll to Submit Button -->
+            <button class="scroll-to-submit" id="scrollToSubmit" title="Scroll to Submit Button">
+                <i class="fas fa-arrow-down"></i>
+            </button>
         </div>
-        <div class="footer">
-            <p>Vectorneu AI Solutions • AI-Powered Business Solutions</p>
-            <p>This is an automated message. Please do not reply directly to this email.</p>
+
+        <!-- Reschedule Form -->
+        <div class="reschedule-form" id="rescheduleForm">
+            <h3 class="form-title">Reschedule Your Appointment</h3>
+            <div class="loading" id="rescheduleLoading">Processing your reschedule request...</div>
+            <div class="success-message" id="rescheduleSuccessMessage"></div>
+            <div class="error-message" id="rescheduleErrorMessage"></div>
+            
+            <form id="rescheduleBookingForm">
+                <div class="form-group">
+                    <label for="referenceId">Reference ID *</label>
+                    <input type="text" id="referenceId" name="referenceId" required placeholder="Enter your appointment reference ID">
+                </div>
+                <div class="form-group">
+                    <label for="rescheduleEmail">Email Address *</label>
+                    <input type="email" id="rescheduleEmail" name="email" required placeholder="Enter your email address">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="rescheduleDate">New Preferred Date *</label>
+                        <input type="date" id="rescheduleDate" name="date" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="rescheduleTime">New Preferred Time *</label>
+                        <input type="time" id="rescheduleTime" name="time" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="rescheduleDuration">New Duration (minutes)</label>
+                    <select id="rescheduleDuration" name="duration">
+                        <option value="30">30 minutes</option>
+                        <option value="60" selected>60 minutes</option>
+                        <option value="90">90 minutes</option>
+                        <option value="120">120 minutes</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="rescheduleReason">Reason for Rescheduling</label>
+                    <textarea id="rescheduleReason" name="reason" rows="3" placeholder="Please provide reason for rescheduling..."></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="submit-btn" id="rescheduleSubmitBtn">
+                        <i class="fas fa-calendar-alt"></i> Reschedule Appointment
+                    </button>
+                    <button type="button" class="cancel-btn" id="cancelRescheduleBtn">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
+            </form>
+            
+            <!-- Scroll to Submit Button -->
+            <button class="scroll-to-submit" id="scrollToRescheduleSubmit" title="Scroll to Submit Button">
+                <i class="fas fa-arrow-down"></i>
+            </button>
+        </div>
+        
+        <div class="typing-indicator" id="typingIndicator">
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+        
+        <div class="chat-input-container">
+            <div class="chat-input-wrapper">
+                <input type="text" class="chat-input" id="userInput" placeholder="Type your message...">
+                <button class="voice-button" id="voiceBtn" title="Voice Input">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button class="send-button" id="sendBtn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div class="voice-status" id="voiceStatus">
+                <i class="fas fa-microphone"></i> Listening...
+            </div>
+            <div class="quick-actions">
+                <button class="quick-action-btn" onclick="quickAction('appointment')">
+                    <i class="fas fa-calendar-plus"></i> Book Appointment
+                </button>
+                <button class="quick-action-btn" onclick="quickAction('reschedule')">
+                    <i class="fas fa-calendar-alt"></i> Reschedule
+                </button>
+                <button class="quick-action-btn" onclick="quickAction('services')">
+                    <i class="fas fa-cogs"></i> Our Services
+                </button>
+                <button class="quick-action-btn" onclick="quickAction('contact')">
+                    <i class="fas fa-phone"></i> Contact Info
+                </button>
+            </div>
         </div>
     </div>
-</body>
-</html>
-    `;
-    
-    const plainBody = `
-APPOINTMENT CONFIRMED - VECTORNEU AI SOLUTIONS
 
-Dear ${fullName},
+   <script>
+    // Configuration
+    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWCIdKaaEIRsLJ4VqfWgOC1_PEnVNtFSWmbJLfGfSDyBQBxMEq2eDKcqSOQGggyOprPg/exec';
+    
+    // DOM Elements
+    const chatBotIcon = document.getElementById('chatBotIcon');
+    const chatContainer = document.getElementById('chatContainer');
+    const chatMessages = document.getElementById('chatMessages');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
+    const voiceBtn = document.getElementById('voiceBtn');
+    const voiceStatus = document.getElementById('voiceStatus');
+    const closeChat = document.getElementById('closeChat');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const typingIndicator = document.getElementById('typingIndicator');
+    const appointmentForm = document.getElementById('appointmentForm');
+    const rescheduleForm = document.getElementById('rescheduleForm');
+    const bookingForm = document.getElementById('bookingForm');
+    const rescheduleBookingForm = document.getElementById('rescheduleBookingForm');
+    const cancelAppointmentBtn = document.getElementById('cancelAppointmentBtn');
+    const cancelRescheduleBtn = document.getElementById('cancelRescheduleBtn');
+    const voiceToggleBtn = document.getElementById('voiceToggleBtn');
 
-Your appointment has been successfully scheduled.
+    console.log('🔗 Script URL:', SCRIPT_URL);
+    
+    // Voice recognition
+    let recognition = null;
+    let isListening = false;
+    let voiceAssistantEnabled = false;
+    let speechSynthesis = window.speechSynthesis;
+    let voices = [];
 
-APPOINTMENT DETAILS:
-Reference ID: ${appointmentDetails.referenceId}
-Purpose: ${appointmentDetails.purpose || 'Not specified'}
-Date: ${formatDateForEmail(appointmentDetails.date)}
-Time: ${appointmentDetails.time}
-Duration: ${appointmentDetails.duration || '60'} minutes
-${appointmentDetails.companyName ? `Company: ${appointmentDetails.companyName}` : ''}
-${appointmentDetails.additionalInfo ? `Additional Info: ${appointmentDetails.additionalInfo}` : ''}
-
-${appointmentDetails.meetLink ? `MEETING LINK: ${appointmentDetails.meetLink}` : ''}
-
-IMPORTANT NOTES:
-- Please join the meeting 5 minutes before the scheduled time
-- Keep your Reference ID (${appointmentDetails.referenceId}) for any future communications
-- If you need to reschedule, use the Reference ID in our chat
-- For any queries, reply to this email
-
-We look forward to connecting with you!
-
-Best regards,
-The Vectorneu Team
-
-Vectorneu AI Solutions • AI-Powered Business Solutions
-This is an automated message. Please do not reply directly to this email.
-    `;
-    
-    GmailApp.sendEmail(email, subject, plainBody, {
-      htmlBody: htmlBody,
-      name: 'Vectorneu AI Solutions'
-    });
-    
-    console.log(`Booking confirmation email sent to ${email}`);
-    
-  } catch (error) {
-    console.error('Error sending booking confirmation email:', error);
-    console.error('Error details:', {
-      email: email,
-      fullName: fullName,
-      appointmentDetails: appointmentDetails
-    });
-  }
-}
-
-// Helper function to format date for email
-function formatDateForEmail(dateString) {
-  try {
-    const date = new Date(dateString + 'T00:00:00');
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  } catch (error) {
-    return dateString;
-  }
-}
-
-// Helper functions for spreadsheet storage
-function storeAppointmentInSheet(appointmentData) {
-  try {
-    const sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getActiveSheet();
-    
-    // Create headers if sheet is empty
-    if (sheet.getLastRow() === 0) {
-      sheet.getRange(1, 1, 1, 13).setValues([[
-        'Reference ID', 'Full Name', 'Email', 'Company Name', 'Purpose', 
-        'Date', 'Time', 'Duration', 'Additional Info', 'Meet Link', 
-        'Status', 'Created At', 'Rescheduled At'
-      ]]);
-    }
-    
-    sheet.appendRow([
-      appointmentData.referenceId,
-      appointmentData.fullName,
-      appointmentData.email,
-      appointmentData.companyName,
-      appointmentData.purpose,
-      appointmentData.date,
-      appointmentData.time,
-      appointmentData.duration,
-      appointmentData.additionalInfo,
-      appointmentData.meetLink,
-      appointmentData.status,
-      appointmentData.createdAt,
-      appointmentData.rescheduledAt || ''
-    ]);
-  } catch (error) {
-    console.error('Error storing in sheet:', error);
-  }
-}
-function findAppointmentByReferenceId(referenceId) {
-  try {
-    console.log('🔍 Searching for appointment:', referenceId);
-    
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    const sheet = spreadsheet.getSheetByName('Appointments');
-    
-    if (!sheet) {
-      console.log('❌ Appointments sheet not found');
-      return null;
-    }
-    
-    const data = sheet.getDataRange().getValues();
-    
-    if (data.length < 2) {
-      console.log('❌ No appointment data found');
-      return null;
-    }
-    
-    const headers = data[0];
-    console.log('📋 Headers:', headers);
-    
-    // Map column indices based on your original booking function
-    const columnMap = {
-      appointmentId: headers.indexOf('Appointment ID'),
-      name: headers.indexOf('Name'),
-      email: headers.indexOf('Email'),
-      company: headers.indexOf('Company'),
-      purpose: headers.indexOf('Purpose'),
-      date: headers.indexOf('Date'),
-      time: headers.indexOf('Time'),
-      duration: headers.indexOf('Duration'),
-      status: headers.indexOf('Status'),
-      timestamp: headers.indexOf('Timestamp')
-    };
-    
-    console.log('🗺️ Column map:', columnMap);
-    
-    // Search for the appointment
-    for (let i = 1; i < data.length; i++) {
-      const row = data[i];
-      const rowAppointmentId = row[columnMap.appointmentId];
-      
-      console.log(`🔍 Checking row ${i}:`, rowAppointmentId);
-      
-      if (rowAppointmentId && rowAppointmentId.toString().trim() === referenceId.toString().trim()) {
-        console.log('✅ FOUND MATCHING APPOINTMENT!');
+    // ========== VOICE ASSISTANCE FUNCTIONS ==========
+    function initializeVoiceAssistant() {
+        // Initialize speech synthesis
+        speechSynthesis = window.speechSynthesis;
         
-        const appointment = {
-          referenceId: rowAppointmentId,
-          fullName: row[columnMap.name] || 'Customer',
-          email: row[columnMap.email] || '',
-          companyName: row[columnMap.company] || '',
-          purpose: row[columnMap.purpose] || '',
-          date: formatDateFromSheet(row[columnMap.date]),
-          time: row[columnMap.time] || '',
-          duration: row[columnMap.duration] || '60',
-          status: row[columnMap.status] || 'Confirmed'
+        // Load available voices
+        function loadVoices() {
+            voices = speechSynthesis.getVoices();
+            console.log('Available voices:', voices.length);
+        }
+        
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = loadVoices;
+        }
+        
+        loadVoices();
+        
+        // Initialize voice recognition
+        if ('webkitSpeechRecognition' in window) {
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+            recognition.lang = 'en-US';
+            
+            recognition.onstart = function() {
+                console.log('Voice recognition started');
+                isListening = true;
+                voiceBtn.classList.add('listening');
+                voiceStatus.style.display = 'block';
+            };
+            
+            recognition.onresult = function(event) {
+                const transcript = event.results[0][0].transcript;
+                console.log('Voice input:', transcript);
+                userInput.value = transcript;
+                
+                setTimeout(() => {
+                    const message = userInput.value.trim();
+                    if (message !== '') {
+                        addUserMessage(message);
+                        userInput.value = '';
+                        sendMessageToBot(message);
+                    }
+                }, 500);
+            };
+            
+            recognition.onend = function() {
+                console.log('Voice recognition ended');
+                isListening = false;
+                voiceBtn.classList.remove('listening');
+                voiceStatus.style.display = 'none';
+            };
+            
+            recognition.onerror = function(event) {
+                console.error('Voice recognition error:', event.error);
+                isListening = false;
+                voiceBtn.classList.remove('listening');
+                voiceStatus.style.display = 'none';
+                
+                if (event.error === 'not-allowed') {
+                    addBotMessage("Please allow microphone access to use voice input.");
+                }
+            };
+        } else {
+            console.log('Voice recognition not supported');
+            voiceBtn.style.display = 'none';
+        }
+    }
+    
+    function speakText(text) {
+        if (!voiceAssistantEnabled || !speechSynthesis) return;
+        
+        // Stop any ongoing speech
+        speechSynthesis.cancel();
+        
+        const utterance = new SpeechSynthesisUtterance(text);
+        
+        // Select a voice (prefer female voices for better user experience)
+        const preferredVoices = voices.filter(voice => 
+            voice.lang.includes('en') && 
+            (voice.name.includes('Female') || voice.name.includes('Samantha') || voice.name.includes('Karen'))
+        );
+        
+        if (preferredVoices.length > 0) {
+            utterance.voice = preferredVoices[0];
+        } else if (voices.length > 0) {
+            utterance.voice = voices[0];
+        }
+        
+        utterance.rate = 0.9;
+        utterance.pitch = 1;
+        utterance.volume = 0.8;
+        
+        utterance.onstart = function() {
+            console.log('Speech started');
         };
         
-        console.log('📋 Appointment details:', appointment);
-        return appointment;
-      }
+        utterance.onend = function() {
+            console.log('Speech ended');
+        };
+        
+        utterance.onerror = function(event) {
+            console.error('Speech error:', event);
+        };
+        
+        speechSynthesis.speak(utterance);
     }
     
-    console.log('❌ No appointment found with ID:', referenceId);
-    return null;
-    
-  } catch (error) {
-    console.error('❌ Error finding appointment:', error);
-    return null;
-  }
-}
-
-function formatDateFromSheet(dateValue) {
-  try {
-    if (!dateValue) return '';
-    
-    if (typeof dateValue === 'string') {
-      return dateValue;
-    }
-    
-    if (dateValue instanceof Date) {
-      return Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    }
-    
-    // Handle Google Sheets date serial numbers
-    const date = new Date(dateValue);
-    if (!isNaN(date.getTime())) {
-      return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    }
-    
-    return dateValue.toString();
-  } catch (error) {
-    console.log('Date formatting error:', error);
-    return dateValue ? dateValue.toString() : '';
-  }
-}
-// Helper function to format dates from spreadsheet
-function formatDateForSheet(dateValue) {
-  try {
-    if (!dateValue) return '';
-    
-    if (typeof dateValue === 'string') {
-      return dateValue;
-    }
-    
-    if (dateValue instanceof Date) {
-      return Utilities.formatDate(dateValue, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-    }
-    
-    // If it's a serial number (Google Sheets date)
-    const date = new Date(dateValue);
-    return Utilities.formatDate(date, Session.getScriptTimeZone(), 'yyyy-MM-dd');
-  } catch (error) {
-    console.log('Date formatting error:', error);
-    return dateValue.toString();
-  }
-}
-
-
-function updateAppointmentInSheet(referenceId, updateData) {
-  try {
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    let sheet = spreadsheet.getSheetByName('Appointments');
-    
-    if (!sheet) {
-      return { success: false, error: 'Appointments sheet not found' };
-    }
-    
-    const data = sheet.getDataRange().getValues();
-    const headers = data[0];
-    
-    // Find column indices
-    const refIdIndex = headers.indexOf('Appointment ID');
-    const dateIndex = headers.indexOf('Date');
-    const timeIndex = headers.indexOf('Time');
-    const durationIndex = headers.indexOf('Duration');
-    const statusIndex = headers.indexOf('Status');
-    
-    if (refIdIndex === -1) {
-      return { success: false, error: 'Appointment ID column not found' };
-    }
-    
-    // Find and update the row
-    for (let i = 1; i < data.length; i++) {
-      if (data[i][refIdIndex] === referenceId) {
-        // Update the row
-        if (updateData.date && dateIndex !== -1) {
-          sheet.getRange(i + 1, dateIndex + 1).setValue(updateData.date);
-        }
-        if (updateData.time && timeIndex !== -1) {
-          sheet.getRange(i + 1, timeIndex + 1).setValue(updateData.time);
-        }
-        if (updateData.duration && durationIndex !== -1) {
-          sheet.getRange(i + 1, durationIndex + 1).setValue(updateData.duration);
-        }
-        if (updateData.status && statusIndex !== -1) {
-          sheet.getRange(i + 1, statusIndex + 1).setValue(updateData.status);
+    function toggleVoiceAssistant() {
+        voiceAssistantEnabled = !voiceAssistantEnabled;
+        
+        if (voiceAssistantEnabled) {
+            console.log('Voice assistant enabled');
+            voiceToggleBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+            voiceToggleBtn.classList.remove('muted');
+            addBotMessage("Voice assistant enabled 🔊");
+            
+            // Speak the welcome message
+            speakText("Voice assistant is now enabled.");
+        } else {
+            console.log('Voice assistant disabled');
+            voiceToggleBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
+            voiceToggleBtn.classList.add('muted');
+            addBotMessage("Voice assistant muted 🔇");
+            
+            // Stop any ongoing speech
+            if (speechSynthesis) {
+                speechSynthesis.cancel();
+            }
         }
         
-        console.log('✅ Spreadsheet updated for reference:', referenceId);
-        return { success: true };
-      }
+        // Save preference to localStorage
+        localStorage.setItem('voiceAssistantEnabled', voiceAssistantEnabled);
     }
     
-    return { success: false, error: 'Appointment not found in sheet' };
-    
-  } catch (error) {
-    console.error('❌ Spreadsheet update error:', error);
-    return { success: false, error: error.message };
-  }
-}
-function debugSpreadsheetStructure() {
-  try {
-    console.log('🔍 DEBUGGING SPREADSHEET STRUCTURE...');
-    
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    console.log('📊 Spreadsheet:', spreadsheet.getName());
-    
-    // Check all sheets
-    const sheets = spreadsheet.getSheets();
-    console.log('📑 Available sheets:');
-    sheets.forEach(sheet => {
-      console.log(`- ${sheet.getName()}: ${sheet.getLastRow()} rows`);
-    });
-    
-    // Focus on Appointments sheet
-    let appointmentsSheet = spreadsheet.getSheetByName('Appointments');
-    if (!appointmentsSheet) {
-      console.log('❌ No "Appointments" sheet found!');
-      console.log('💡 Creating a new Appointments sheet...');
-      appointmentsSheet = spreadsheet.insertSheet('Appointments');
-      // Add headers
-      const headers = ['Appointment ID', 'Name', 'Email', 'Company', 'Purpose', 'Date', 'Time', 'Duration', 'Status', 'Timestamp'];
-      appointmentsSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
-      console.log('✅ Created new Appointments sheet with headers');
-    }
-    
-    const data = appointmentsSheet.getDataRange().getValues();
-    console.log(`📈 Appointments sheet has ${data.length} rows`);
-    
-    if (data.length === 0) {
-      console.log('❌ No data in Appointments sheet');
-      return { success: false, message: 'No data found' };
-    }
-    
-    // Log headers
-    console.log('📋 HEADERS:');
-    data[0].forEach((header, index) => {
-      console.log(`  ${index + 1}. "${header}"`);
-    });
-    
-    // Log sample data
-    console.log('📝 SAMPLE DATA (first 3 rows):');
-    for (let i = 1; i < Math.min(4, data.length); i++) {
-      console.log(`Row ${i + 1}:`, data[i]);
-    }
-    
-    // Check specific columns
-    const headers = data[0];
-    const refIdIndex = headers.findIndex(h => h.toString().toLowerCase().includes('appointment') || h.toString().toLowerCase().includes('id'));
-    const nameIndex = headers.findIndex(h => h.toString().toLowerCase().includes('name'));
-    const emailIndex = headers.findIndex(h => h.toString().toLowerCase().includes('email'));
-    
-    console.log('🔍 KEY COLUMN INDICES:');
-    console.log('- Reference ID:', refIdIndex);
-    console.log('- Name:', nameIndex);
-    console.log('- Email:', emailIndex);
-    
-    return {
-      success: true,
-      headers: headers,
-      sampleData: data.slice(0, Math.min(4, data.length)),
-      columnIndices: {
-        referenceId: refIdIndex,
-        name: nameIndex,
-        email: emailIndex
-      }
-    };
-    
-  } catch (error) {
-    console.error('❌ Debug error:', error);
-    return { success: false, error: error.message };
-  }
-}
-
-// Run this first to see your spreadsheet structure
-function testDebug() {
-  const result = debugSpreadsheetStructure();
-  console.log('Debug result:', result);
-  return result;
-}
-
-function debugAppointmentStructure() {
-  try {
-    console.log('🔍 Debugging appointment structure...');
-    
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    let sheet = spreadsheet.getSheetByName('Appointments');
-    
-    if (!sheet) {
-      console.log('❌ Appointments sheet not found!');
-      // Let's see what sheets exist
-      const sheets = spreadsheet.getSheets();
-      console.log('Available sheets:', sheets.map(s => s.getName()));
-      return { success: false, message: 'Appointments sheet not found' };
-    }
-    
-    const data = sheet.getDataRange().getValues();
-    console.log('📊 Total rows in sheet:', data.length);
-    
-    if (data.length === 0) {
-      console.log('❌ No data in Appointments sheet');
-      return { success: false, message: 'No data in sheet' };
-    }
-    
-    // Log headers
-    const headers = data[0];
-    console.log('📋 Headers:', headers);
-    
-    // Log first few rows of data
-    console.log('📝 First 3 rows of data:');
-    for (let i = 1; i < Math.min(4, data.length); i++) {
-      console.log(`Row ${i}:`, data[i]);
-    }
-    
-    // Check if we have any appointments with reference IDs
-    const refIdIndex = headers.findIndex(header => 
-      header.toLowerCase().includes('appointment') || 
-      header.toLowerCase().includes('reference') ||
-      header.toLowerCase().includes('id')
-    );
-    
-    console.log('🔍 Reference ID column index:', refIdIndex);
-    
-    if (refIdIndex !== -1) {
-      console.log('📋 All reference IDs in sheet:');
-      for (let i = 1; i < data.length; i++) {
-        if (data[i][refIdIndex]) {
-          console.log(`Row ${i}: ${data[i][refIdIndex]}`);
+    function startVoiceInput() {
+        if (!recognition) {
+            addBotMessage("Voice input is not supported in your browser.");
+            return;
         }
-      }
+        
+        if (isListening) {
+            recognition.stop();
+        } else {
+            recognition.start();
+        }
     }
-    
-    return {
-      success: true,
-      headers: headers,
-      rowCount: data.length - 1,
-      sampleData: data.slice(0, Math.min(4, data.length))
-    };
-    
-  } catch (error) {
-    console.error('❌ Debug error:', error);
-    return { success: false, error: error.message };
-  }
-}
 
-// Run this to debug your spreadsheet
-function testDebug() {
-  const result = debugAppointmentStructure();
-  console.log('Debug result:', result);
-  return result;
-}
+    // ========== FIXED MESSAGE HANDLER ==========
+    function sendMessageToBot(message) {
+        // Show typing indicator
+        typingIndicator.style.display = 'block';
+        scrollToBottom();
+        
+        console.log('💬 Sending:', message);
+        
+        // FIXED: Properly encode parameters
+        const params = new URLSearchParams({
+            action: 'message',
+            message: message,
+            timestamp: Date.now()
+        });
+        
+        fetch(`${SCRIPT_URL}?${params}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                typingIndicator.style.display = 'none';
+                console.log('✅ Response:', data);
+                
+                if (data.response) {
+                    // Only show appointment button, NOT the form automatically
+                    addBotMessage(data.response, data.showAppointmentForm);
+                    
+                    // Speak the response if voice assistant is enabled
+                    if (voiceAssistantEnabled) {
+                        speakText(data.response.replace(/<[^>]*>/g, ''));
+                    }
+                } else if (data.error) {
+                    const errorMessage = "I'm here to help! How can I assist with Vectorneu's AI services?";
+                    addBotMessage(errorMessage);
+                    
+                    if (voiceAssistantEnabled) {
+                        speakText(errorMessage);
+                    }
+                } else {
+                    const defaultMessage = "I'd love to help with our AI services! What would you like to know?";
+                    addBotMessage(defaultMessage);
+                    
+                    if (voiceAssistantEnabled) {
+                        speakText(defaultMessage);
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('❌ API error:', error);
+                typingIndicator.style.display = 'none';
+                const fallbackMessage = "I specialize in AI chatbots and automation! How can I assist you today?";
+                addBotMessage(fallbackMessage);
+                
+                if (voiceAssistantEnabled) {
+                    speakText(fallbackMessage);
+                }
+            });
+    }
 
-function handleRescheduleAppointment(params) {
-  try {
-    console.log('🔄 STARTING RESCHEDULE PROCESS...');
-    console.log('📋 Received parameters:', params);
-    
-    const {
-      referenceId,
-      email,
-      newDate,
-      newTime,
-      duration = '60',
-      reason = ''
-    } = params;
-    
-    // Validate required fields
-    if (!referenceId) {
-      console.log('❌ Missing referenceId');
-      return { success: false, message: 'Reference ID is required' };
+    // ========== APPOINTMENT BOOKING FUNCTIONS ==========
+    function submitAppointment(formData) {
+        return new Promise((resolve, reject) => {
+            // Create URLSearchParams with all form data
+            const params = new URLSearchParams({
+                action: 'bookAppointment',
+                timestamp: Date.now()
+            });
+            
+            // Add all form fields
+            Object.keys(formData).forEach(key => {
+                params.append(key, formData[key]);
+            });
+            
+            console.log('📤 Submitting appointment:', Object.keys(formData));
+            
+            fetch(`${SCRIPT_URL}?${params}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('✅ Appointment response:', data);
+                    resolve(data);
+                })
+                .catch(error => {
+                    console.error('❌ Appointment error:', error);
+                    reject(error);
+                });
+        });
+    }
+
+    function rescheduleAppointment(formData) {
+        return new Promise((resolve, reject) => {
+            // Create URLSearchParams with all form data
+            const params = new URLSearchParams({
+                action: 'rescheduleAppointment',
+                timestamp: Date.now()
+            });
+            
+            // Add all form fields
+            Object.keys(formData).forEach(key => {
+                params.append(key, formData[key]);
+            });
+            
+            console.log('📤 Rescheduling appointment:', Object.keys(formData));
+            
+            fetch(`${SCRIPT_URL}?${params}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('✅ Reschedule response:', data);
+                    resolve(data);
+                })
+                .catch(error => {
+                    console.error('❌ Reschedule error:', error);
+                    reject(error);
+                });
+        });
+    }
+
+    // ========== CHAT FUNCTIONS ==========
+    function addUserMessage(message) {
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message user-message user';
+        
+        messageElement.innerHTML = `
+            <div class="message-content">${sanitizeInput(message)}</div>
+            <div class="avatar user-avatar">
+                <i class="fas fa-user"></i>
+            </div>
+        `;
+        
+        chatMessages.appendChild(messageElement);
+        scrollToBottom();
+    }
+
+    function addBotMessage(message, showAppointmentButton = false) {
+        const messageElement = document.createElement('div');
+        messageElement.className = 'message bot-message';
+        
+        // Convert URLs to clickable links
+        const messageWithLinks = message.replace(
+            /(https?:\/\/[^\s]+)/g, 
+            '<a href="$1" target="_blank" style="color: #2563eb; text-decoration: underline;">$1</a>'
+        );
+        
+        let appointmentButton = '';
+        if (showAppointmentButton) {
+            appointmentButton = `
+                <div class="quick-actions" style="margin-top: 10px;">
+                    <button class="quick-action-btn" onclick="showAppointmentForm()">
+                        <i class="fas fa-calendar-plus"></i> Book Appointment Now
+                    </button>
+                </div>
+            `;
+        }
+        
+        messageElement.innerHTML = `
+            <div class="avatar bot-avatar">
+                <img src="VECTORNEU LOGO.png" alt="Vectorneu Logo" class="logo-avatar" onerror="this.style.display='none'; this.parentElement.innerHTML='<i class=\\'fas fa-robot\\'></i>';">
+            </div>
+            <div class="message-content">
+                ${messageWithLinks}
+                ${appointmentButton}
+            </div>
+        `;
+        
+        chatMessages.appendChild(messageElement);
+        scrollToBottom();
     }
     
-    if (!email || !email.includes('@')) {
-      console.log('❌ Invalid email:', email);
-      return { success: false, message: 'Valid email is required' };
+    // ========== FORM HANDLING ==========
+    function showAppointmentForm() {
+        hideAllForms();
+        appointmentForm.classList.add('active');
+        initializeAppointmentForm();
+        scrollToBottom();
+        
+        // Speak instruction if voice assistant is enabled
+        if (voiceAssistantEnabled) {
+            speakText("I've opened the appointment form. Please fill in your details to book a meeting.");
+        }
     }
-    
-    if (!newDate || !newTime) {
-      console.log('❌ Missing date/time:', { newDate, newTime });
-      return { success: false, message: 'New date and time are required' };
+
+    function showRescheduleForm() {
+        hideAllForms();
+        rescheduleForm.classList.add('active');
+        initializeRescheduleForm();
+        scrollToBottom();
+        
+        // Speak instruction if voice assistant is enabled
+        if (voiceAssistantEnabled) {
+            speakText("I've opened the reschedule form. Please provide your reference ID and new preferred time.");
+        }
     }
-    
-    console.log('✅ Basic validation passed');
-    
-    // Find existing appointment in spreadsheet
-    console.log('🔍 Searching for appointment with referenceId:', referenceId);
-    const appointment = findAppointmentByReferenceId(referenceId);
-    console.log('🔍 Appointment search result:', appointment);
-    
-    if (!appointment) {
-      console.log('❌ No appointment found with referenceId:', referenceId);
-      return { success: false, message: 'No appointment found with this Reference ID' };
+
+    function hideAllForms() {
+        appointmentForm.classList.remove('active');
+        rescheduleForm.classList.remove('active');
+        bookingForm.reset();
+        rescheduleBookingForm.reset();
+        
+        // Reset form messages
+        document.getElementById('formLoading').style.display = 'none';
+        document.getElementById('successMessage').style.display = 'none';
+        document.getElementById('errorMessage').style.display = 'none';
+        document.getElementById('rescheduleLoading').style.display = 'none';
+        document.getElementById('rescheduleSuccessMessage').style.display = 'none';
+        document.getElementById('rescheduleErrorMessage').style.display = 'none';
     }
-    
-    // Verify email matches
-    console.log('🔐 Verifying email match:', { 
-      providedEmail: email, 
-      storedEmail: appointment.email 
+
+    function initializeAppointmentForm() {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const appointmentDate = document.getElementById('appointmentDate');
+        appointmentDate.min = tomorrow.toISOString().split('T')[0];
+        appointmentDate.value = tomorrow.toISOString().split('T')[0];
+        
+        document.getElementById('appointmentTime').value = '10:00';
+        document.getElementById('duration').value = '60';
+        
+        // Reset messages
+        document.getElementById('formLoading').style.display = 'none';
+        document.getElementById('successMessage').style.display = 'none';
+        document.getElementById('errorMessage').style.display = 'none';
+    }
+
+    function initializeRescheduleForm() {
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const rescheduleDate = document.getElementById('rescheduleDate');
+        rescheduleDate.min = tomorrow.toISOString().split('T')[0];
+        rescheduleDate.value = tomorrow.toISOString().split('T')[0];
+        
+        document.getElementById('rescheduleTime').value = '10:00';
+        document.getElementById('rescheduleDuration').value = '60';
+        
+        // Reset messages
+        document.getElementById('rescheduleLoading').style.display = 'none';
+        document.getElementById('rescheduleSuccessMessage').style.display = 'none';
+        document.getElementById('rescheduleErrorMessage').style.display = 'none';
+    }
+
+    // ========== EVENT LISTENERS ==========
+    chatBotIcon.addEventListener('click', function() {
+        chatContainer.classList.add('active');
+        chatBotIcon.style.display = 'none';
+        
+        if (chatMessages.children.length === 0) {
+            const welcomeMessage = "Hello! I'm VectorAI 🤖 I help with AI services and appointments. How can I assist you?";
+            addBotMessage(welcomeMessage);
+            
+            // Speak welcome message if voice assistant is enabled
+            if (voiceAssistantEnabled) {
+                speakText(welcomeMessage);
+            }
+        }
     });
-    
-    if (appointment.email !== email) {
-      console.log('❌ Email mismatch');
-      return { success: false, message: 'Email does not match the appointment record' };
-    }
-    
-    console.log('✅ Email verification passed');
-    
-    // Store old appointment details for email
-    const oldAppointmentDetails = {
-      date: appointment.date,
-      time: appointment.time,
-      duration: appointment.duration || '60'
-    };
-    
-    console.log('📅 Old appointment details:', oldAppointmentDetails);
-    
-    // Update calendar event
-    console.log('📅 Updating calendar event...');
-    const calendarResult = updateCalendarEvent(appointment, newDate, newTime, duration, reason);
-    console.log('📅 Calendar update result:', calendarResult);
-    
-    // Update spreadsheet
-    console.log('📊 Updating spreadsheet...');
-    const sheetResult = updateAppointmentInSheet(referenceId, {
-      date: newDate,
-      time: newTime,
-      duration: duration,
-      status: 'rescheduled',
-      rescheduledAt: new Date().toISOString(),
-      rescheduleReason: reason
+
+    closeChat.addEventListener('click', function() {
+        chatContainer.classList.remove('active');
+        chatBotIcon.style.display = 'flex';
+        hideAllForms();
+        
+        // Stop any ongoing speech when closing chat
+        if (speechSynthesis) {
+            speechSynthesis.cancel();
+        }
     });
-    console.log('📊 Spreadsheet update result:', sheetResult);
-    
-    if (!sheetResult.success) {
-      console.log('❌ Spreadsheet update failed');
-      return { success: false, message: 'Failed to update appointment record: ' + sheetResult.error };
+
+    refreshBtn.addEventListener('click', function() {
+        chatMessages.innerHTML = '';
+        hideAllForms();
+        const refreshMessage = "Hi there! Fresh start 👋 How can I help with Vectorneu's AI services?";
+        addBotMessage(refreshMessage);
+        
+        // Speak refresh message if voice assistant is enabled
+        if (voiceAssistantEnabled) {
+            speakText(refreshMessage);
+        }
+    });
+
+    sendBtn.addEventListener('click', sendMessage);
+    userInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') sendMessage();
+    });
+
+    function sendMessage() {
+        const message = userInput.value.trim();
+        if (message === '') return;
+        
+        addUserMessage(message);
+        userInput.value = '';
+        sendMessageToBot(message);
     }
     
-    // Prepare appointment details for email
-    const appointmentDetails = {
-      referenceId: referenceId,
-      fullName: appointment.fullName,
-      email: appointment.email,
-      oldDate: oldAppointmentDetails.date,
-      oldTime: oldAppointmentDetails.time,
-      oldDuration: oldAppointmentDetails.duration,
-      newDate: newDate,
-      newTime: newTime,
-      newDuration: duration,
-      reason: reason,
-      meetLink: calendarResult.meetLink || ''
-    };
+    // Voice button event listener
+    voiceBtn.addEventListener('click', startVoiceInput);
     
-    console.log('📧 Prepared appointment details for email:', appointmentDetails);
-    
-    // Send reschedule confirmation email
-    console.log('📧 Calling email function...');
-    const emailResult = sendRescheduleConfirmationEmail(appointmentDetails);
-    console.log('📧 Email result:', emailResult);
-    
-    console.log('✅ RESCHEDULE PROCESS COMPLETED SUCCESSFULLY!');
-    
-    return {
-      success: true,
-      message: '✅ Appointment rescheduled successfully!' + (emailResult.success ? ' Confirmation email sent.' : ''),
-      referenceId: referenceId,
-      emailSent: emailResult.success,
-      calendarUpdated: calendarResult.success,
-      meetLink: calendarResult.meetLink
-    };
-    
-  } catch (error) {
-    console.error('❌ RESCHEDULE ERROR:', error);
-    return { success: false, message: 'Reschedule failed: ' + error.message };
-  }
-}
+    // Voice toggle button event listener
+    voiceToggleBtn.addEventListener('click', toggleVoiceAssistant);
 
-// ========== TEST FUNCTIONS ==========
-function testCalendarAccess() {
-  try {
-    console.log('🔍 Testing calendar access...');
-    
-    const calendar = CalendarApp.getCalendarById(CALENDAR_ID);
-    if (!calendar) {
-      return { success: false, error: 'Calendar not found' };
+    // Quick actions
+    function quickAction(action) {
+        const messages = {
+            'appointment': "I want to book an appointment",
+            'reschedule': "I want to reschedule my appointment",
+            'services': "What services do you offer?",
+            'contact': "What's your contact information?"
+        };
+        
+        if (messages[action]) {
+            if (action === 'reschedule') {
+                showRescheduleForm();
+            } else {
+                addUserMessage(messages[action]);
+                sendMessageToBot(messages[action]);
+            }
+        }
     }
-    
-    return { 
-      success: true, 
-      message: '✅ Calendar access working!',
-      calendarName: calendar.getName()
-    };
-    
-  } catch (error) {
-    console.error('❌ Calendar test failed:', error);
-    return { success: false, error: error.message };
-  }
-}
 
-function testKnowledgeBase() {
-  try {
-    console.log('🧠 Testing knowledge base...');
-    
-    const testQuery = "AI services";
-    const knowledge = getRelevantKnowledge(testQuery);
-    
-    return {
-      success: true,
-      message: '✅ Knowledge base working!',
-      testQuery: testQuery,
-      knowledgeSample: knowledge.substring(0, 500) + '...'
-    };
-    
-  } catch (error) {
-    console.error('❌ Knowledge base test failed:', error);
-    return { success: false, error: error.message };
-  }
-}
+    // Form submission - Booking
+    bookingForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const submitBtn = document.getElementById('submitBtn');
+        const formLoading = document.getElementById('formLoading');
+        const successMessage = document.getElementById('successMessage');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        // Show loading
+        formLoading.style.display = 'block';
+        successMessage.style.display = 'none';
+        errorMessage.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Booking...';
+        
+        const formData = {
+            fullName: document.getElementById('fullName').value.trim(),
+            email: document.getElementById('email').value.trim(),
+            companyName: document.getElementById('companyName').value.trim(),
+            purpose: document.getElementById('purpose').value,
+            date: document.getElementById('appointmentDate').value,
+            time: document.getElementById('appointmentTime').value,
+            duration: document.getElementById('duration').value,
+            additionalInfo: document.getElementById('additionalInfo').value.trim()
+        };
+        
+        console.log('📤 Form data:', formData);
+        
+        submitAppointment(formData)
+            .then(result => {
+                console.log('📋 Appointment result:', result);
+                formLoading.style.display = 'none';
+                
+                if (result.success) {
+                    successMessage.textContent = result.message || 'Appointment booked successfully!';
+                    successMessage.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        hideAllForms();
+                        showAppointmentSuccess(result, formData);
+                    }, 2000);
+                } else {
+                    errorMessage.textContent = result.message || 'Booking failed. Please try again.';
+                    errorMessage.style.display = 'block';
+                    
+                    // Show suggested slots if available
+                    if (result.suggestedSlots && result.suggestedSlots.length > 0) {
+                        addBotMessage("Here are some available times: " + 
+                            result.suggestedSlots.map(slot => slot.label).join(', '));
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('❌ Form submission error:', error);
+                formLoading.style.display = 'none';
+                errorMessage.textContent = 'Network error. Please check your connection and try again.';
+                errorMessage.style.display = 'block';
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-calendar-check"></i> Book Appointment';
+            });
+    });
 
-function testGroqAPI() {
-  try {
-    console.log('🤖 Testing Groq API...');
-    
-    const testMessage = "Hello! What AI services do you offer?";
-    const response = callGroqAPI(SYSTEM_PROMPT, testMessage);
-    
-    return {
-      success: true,
-      message: '✅ Groq API working!',
-      testMessage: testMessage,
-      aiResponse: response
-    };
-    
-  } catch (error) {
-    console.error('❌ Groq API test failed:', error);
-    return { success: false, error: error.message };
-  }
-}
-function testReschedule() {
-  const testParams = {
-    action: 'rescheduleAppointment',
-    referenceId: 'VEC-ABC123', // Use a real reference ID from your spreadsheet
-    email: 'test@example.com', // Use the email associated with that appointment
-    newDate: '2024-12-25',
-    newTime: '14:30',
-    duration: '45',
-    reason: 'Test reschedule'
-  };
-  
-  const result = handleRescheduleAppointment(testParams);
-  console.log('Test result:', result);
-  return result;
-}
-function testAndDebug() {
-  console.log('=== DEBUGGING APPOINTMENT SYSTEM ===');
-  
-  // 1. Check spreadsheet structure
-  const debugResult = debugAppointmentStructure();
-  console.log('Debug Structure Result:', debugResult);
-  
-  // 2. If we have appointments, test finding one
-  if (debugResult.success && debugResult.rowCount > 0) {
-    const testReferenceId = 'VEC-ABC123'; // Replace with a real ID from your logs
-    console.log('=== TESTING APPOINTMENT SEARCH ===');
-    const appointment = findAppointmentByReferenceId(testReferenceId);
-    console.log('Appointment Search Result:', appointment);
-  }
-  
-  return debugResult;
-}
+    // Form submission - Reschedule
+    rescheduleBookingForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        const submitBtn = document.getElementById('rescheduleSubmitBtn');
+        const formLoading = document.getElementById('rescheduleLoading');
+        const successMessage = document.getElementById('rescheduleSuccessMessage');
+        const errorMessage = document.getElementById('rescheduleErrorMessage');
+        
+        // Show loading
+        formLoading.style.display = 'block';
+        successMessage.style.display = 'none';
+        errorMessage.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rescheduling...';
+        
+        const formData = {
+            referenceId: document.getElementById('referenceId').value.trim(),
+            email: document.getElementById('rescheduleEmail').value.trim(),
+            date: document.getElementById('rescheduleDate').value,
+            time: document.getElementById('rescheduleTime').value,
+            duration: document.getElementById('rescheduleDuration').value,
+            reason: document.getElementById('rescheduleReason').value.trim()
+        };
+        
+        console.log('📤 Reschedule data:', formData);
+        
+        rescheduleAppointment(formData)
+            .then(result => {
+                console.log('📋 Reschedule result:', result);
+                formLoading.style.display = 'none';
+                
+                if (result.success) {
+                    successMessage.textContent = result.message || 'Appointment rescheduled successfully!';
+                    successMessage.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        hideAllForms();
+                        showRescheduleSuccess(result, formData);
+                    }, 2000);
+                } else {
+                    errorMessage.textContent = result.message || 'Reschedule failed. Please try again.';
+                    errorMessage.style.display = 'block';
+                    
+                    // Show suggested slots if available
+                    if (result.suggestedSlots && result.suggestedSlots.length > 0) {
+                        addBotMessage("Here are some available times: " + 
+                            result.suggestedSlots.map(slot => slot.label).join(', '));
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('❌ Reschedule error:', error);
+                formLoading.style.display = 'none';
+                errorMessage.textContent = 'Network error. Please check your connection and try again.';
+                errorMessage.style.display = 'block';
+            })
+            .finally(() => {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-calendar-alt"></i> Reschedule Appointment';
+            });
+    });
 
-function createTestAppointment() {
-  try {
-    console.log('📝 Creating test appointment...');
-    
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-    let sheet = spreadsheet.getSheetByName('Appointments');
-    
-    if (!sheet) {
-      console.log('❌ Appointments sheet not found, creating...');
-      sheet = spreadsheet.insertSheet('Appointments');
-      const headers = ['Appointment ID', 'Name', 'Email', 'Company', 'Purpose', 'Date', 'Time', 'Duration', 'Status', 'Timestamp'];
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    cancelAppointmentBtn.addEventListener('click', function() {
+        hideAllForms();
+        const cancelMessage = "No problem! Let me know if you need anything else. 😊";
+        addBotMessage(cancelMessage);
+        
+        // Speak cancel message if voice assistant is enabled
+        if (voiceAssistantEnabled) {
+            speakText(cancelMessage);
+        }
+    });
+
+    cancelRescheduleBtn.addEventListener('click', function() {
+        hideAllForms();
+        const cancelMessage = "No problem! Let me know if you need anything else. 😊";
+        addBotMessage(cancelMessage);
+        
+        // Speak cancel message if voice assistant is enabled
+        if (voiceAssistantEnabled) {
+            speakText(cancelMessage);
+        }
+    });
+
+    function showAppointmentSuccess(result, formData) {
+        const successMessage = `
+    ✅ <strong>Appointment Confirmed!</strong>
+    <br>📅 <strong>Date:</strong> ${formData.date} at ${formData.time} (${formData.duration} mins)
+    <br>📧 <strong>Email:</strong> ${formData.email}
+    ${result.meetLink ? `<br>🔗 <strong>Meeting:</strong> <a href="${result.meetLink}" target="_blank">Join Google Meet</a>` : ''}
+    ${result.appointmentId ? `<br>🆔 <strong>Reference ID:</strong> ${result.appointmentId}` : ''}
+        `.trim();
+        
+        addBotMessage(successMessage);
+        
+        // Speak success message if voice assistant is enabled
+        if (voiceAssistantEnabled) {
+            const spokenMessage = `Appointment confirmed for ${formData.date} at ${formData.time}. Check the chat for details.`;
+            speakText(spokenMessage);
+        }
     }
-    
-    const testAppointment = {
-      appointmentId: 'VEC-TEST123',
-      name: 'Test User',
-      email: 'test@example.com',
-      company: 'Test Company',
-      purpose: 'AI Consultation',
-      date: '2024-12-25',
-      time: '14:00',
-      duration: '60',
-      status: 'Confirmed',
-      timestamp: new Date()
-    };
-    
-    const rowData = [
-      testAppointment.appointmentId,
-      testAppointment.name,
-      testAppointment.email,
-      testAppointment.company,
-      testAppointment.purpose,
-      testAppointment.date,
-      testAppointment.time,
-      testAppointment.duration,
-      testAppointment.status,
-      testAppointment.timestamp
-    ];
-    
-    sheet.appendRow(rowData);
-    console.log('✅ Test appointment created:', testAppointment.appointmentId);
-    
-    return {
-      success: true,
-      appointmentId: testAppointment.appointmentId,
-      message: 'Test appointment created successfully'
-    };
-    
-  } catch (error) {
-    console.error('❌ Error creating test appointment:', error);
-    return { success: false, error: error.message };
-  }
-}
 
-function testCompleteRescheduleFlow() {
-  console.log('=== TESTING COMPLETE RESCHEDULE FLOW ===');
-  
-  // Step 1: Debug spreadsheet structure
-  console.log('1. 🔍 Debugging spreadsheet structure...');
-  const debugResult = debugSpreadsheetStructure();
-  if (!debugResult.success) {
-    console.log('❌ Debug failed, creating test appointment...');
-    const testAppointment = createTestAppointment();
-    if (!testAppointment.success) {
-      return { success: false, message: 'Failed to create test appointment' };
+    function showRescheduleSuccess(result, formData) {
+        const successMessage = `
+    ✅ <strong>Appointment Rescheduled!</strong>
+    <br>📅 <strong>New Date:</strong> ${formData.date} at ${formData.time} (${formData.duration} mins)
+    <br>📧 <strong>Email:</strong> ${formData.email}
+    <br>🆔 <strong>Reference ID:</strong> ${formData.referenceId}
+    ${result.meetLink ? `<br>🔗 <strong>New Meeting:</strong> <a href="${result.meetLink}" target="_blank">Join Google Meet</a>` : ''}
+        `.trim();
+        
+        addBotMessage(successMessage);
+        
+        // Speak success message if voice assistant is enabled
+        if (voiceAssistantEnabled) {
+            const spokenMessage = `Appointment rescheduled for ${formData.date} at ${formData.time}. Check the chat for details.`;
+            speakText(spokenMessage);
+        }
     }
-  }
-  
-  // Step 2: Test finding an appointment
-  console.log('2. 🔍 Testing appointment search...');
-  const testReferenceId = 'VEC-TEST123'; // Use the test ID or a real one from your sheet
-  const appointment = findAppointmentByReferenceId(testReferenceId);
-  
-  if (!appointment) {
-    console.log('❌ No appointment found, creating one...');
-    const newAppointment = createTestAppointment();
-    if (newAppointment.success) {
-      console.log('✅ Created test appointment, trying again...');
-      const appointment = findAppointmentByReferenceId(newAppointment.appointmentId);
-      console.log('Appointment found:', appointment);
+
+    // ========== UTILITY FUNCTIONS ==========
+    function sanitizeInput(input) {
+        const div = document.createElement('div');
+        div.textContent = input;
+        return div.innerHTML;
     }
-  } else {
-    console.log('✅ Appointment found:', appointment);
-  }
-  
-  // Step 3: Test reschedule with the found appointment
-  if (appointment) {
-    console.log('3. 🔄 Testing reschedule...');
-    const testParams = {
-      referenceId: appointment.referenceId,
-      email: appointment.email,
-      newDate: '2024-12-26',
-      newTime: '15:30',
-      duration: '45',
-      reason: 'Test reschedule'
-    };
-    
-    console.log('📋 Test parameters:', testParams);
-    const result = handleRescheduleAppointment(testParams);
-    console.log('✅ Reschedule result:', result);
-    
-    return result;
-  } else {
-    console.log('❌ No appointment to test with');
-    return { success: false, message: 'No appointment found for testing' };
-  }
-}
+
+    function scrollToBottom() {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+
+    // ========== TEST FUNCTIONS ==========
+    function testConnection() {
+        console.log('🧪 Testing connection...');
+        
+        const params = new URLSearchParams({
+            action: 'test',
+            timestamp: Date.now()
+        });
+        
+        fetch(`${SCRIPT_URL}?${params}`)
+            .then(response => response.json())
+            .then(data => {
+                console.log('✅ Connection test:', data);
+                // Don't show any message for connection test
+            })
+            .catch(error => {
+                console.error('❌ Connection test failed:', error);
+                // Don't show error message to user
+            });
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('VectorAI initialized');
+        initializeVoiceAssistant();
+        
+        // Load voice assistant preference from localStorage
+        const savedPreference = localStorage.getItem('voiceAssistantEnabled');
+        if (savedPreference !== null) {
+            voiceAssistantEnabled = savedPreference === 'true';
+            if (voiceAssistantEnabled) {
+                voiceToggleBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+                voiceToggleBtn.classList.remove('muted');
+            } else {
+                voiceToggleBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                voiceToggleBtn.classList.add('muted');
+            }
+        }
+        
+        // Test connection on load (silently)
+        setTimeout(() => {
+            testConnection();
+        }, 1000);
+    });
+</script>
+</body>
+</html>

@@ -199,7 +199,7 @@
             background: rgba(255, 255, 255, 0.2);
         }
         
-        /* Voice Assistant Toggle - SIMPLIFIED */
+        /* Voice Assistant Toggle */
         .voice-toggle-btn {
             background: none;
             border: none;
@@ -710,7 +710,7 @@
             </div>
             
             <div class="header-actions">
-                <!-- Voice Toggle Button - SIMPLIFIED -->
+                <!-- Voice Toggle Button -->
                 <button class="voice-toggle-btn" id="voiceToggleBtn" title="Toggle Voice Assistant">
                     <i class="fas fa-volume-up"></i>
                 </button>
@@ -891,202 +891,196 @@
         </div>
     </div>
 
-   <script>
-    // Configuration
-    const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyWCIdKaaEIRsLJ4VqfWgOC1_PEnVNtFSWmbJLfGfSDyBQBxMEq2eDKcqSOQGggyOprPg/exec';
-    
-    // DOM Elements
-    const chatBotIcon = document.getElementById('chatBotIcon');
-    const chatContainer = document.getElementById('chatContainer');
-    const chatMessages = document.getElementById('chatMessages');
-    const userInput = document.getElementById('userInput');
-    const sendBtn = document.getElementById('sendBtn');
-    const voiceBtn = document.getElementById('voiceBtn');
-    const voiceStatus = document.getElementById('voiceStatus');
-    const closeChat = document.getElementById('closeChat');
-    const refreshBtn = document.getElementById('refreshBtn');
-    const typingIndicator = document.getElementById('typingIndicator');
-    const appointmentForm = document.getElementById('appointmentForm');
-    const rescheduleForm = document.getElementById('rescheduleForm');
-    const bookingForm = document.getElementById('bookingForm');
-    const rescheduleBookingForm = document.getElementById('rescheduleBookingForm');
-    const cancelAppointmentBtn = document.getElementById('cancelAppointmentBtn');
-    const cancelRescheduleBtn = document.getElementById('cancelRescheduleBtn');
-    const voiceToggleBtn = document.getElementById('voiceToggleBtn');
+    <script>
+        // ========== CONFIGURATION ==========
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxEPJp9p0aweTUNcSSSKaLyFL0quvT_3kEAml_v5aCc3n_XVKWiRHbX9-CN35rdJ2-pOw/exec';
+        const SENDER_EMAIL = 'vectorneu05@gmail.com';
+        
+        // DOM Elements
+        const chatBotIcon = document.getElementById('chatBotIcon');
+        const chatContainer = document.getElementById('chatContainer');
+        const chatMessages = document.getElementById('chatMessages');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const voiceBtn = document.getElementById('voiceBtn');
+        const voiceStatus = document.getElementById('voiceStatus');
+        const closeChat = document.getElementById('closeChat');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const appointmentForm = document.getElementById('appointmentForm');
+        const rescheduleForm = document.getElementById('rescheduleForm');
+        const bookingForm = document.getElementById('bookingForm');
+        const rescheduleBookingForm = document.getElementById('rescheduleBookingForm');
+        const cancelAppointmentBtn = document.getElementById('cancelAppointmentBtn');
+        const cancelRescheduleBtn = document.getElementById('cancelRescheduleBtn');
+        const voiceToggleBtn = document.getElementById('voiceToggleBtn');
 
-    console.log('🔗 Script URL:', SCRIPT_URL);
-    
-    // Voice recognition
-    let recognition = null;
-    let isListening = false;
-    let voiceAssistantEnabled = false;
-    let speechSynthesis = window.speechSynthesis;
-    let voices = [];
+        console.log('🔗 Script URL:', SCRIPT_URL);
+        
+        // Voice recognition
+        let recognition = null;
+        let isListening = false;
+        let voiceAssistantEnabled = false;
+        let speechSynthesis = window.speechSynthesis;
+        let voices = [];
 
-    // ========== VOICE ASSISTANCE FUNCTIONS ==========
-    function initializeVoiceAssistant() {
-        // Initialize speech synthesis
-        speechSynthesis = window.speechSynthesis;
-        
-        // Load available voices
-        function loadVoices() {
-            voices = speechSynthesis.getVoices();
-            console.log('Available voices:', voices.length);
-        }
-        
-        if (speechSynthesis.onvoiceschanged !== undefined) {
-            speechSynthesis.onvoiceschanged = loadVoices;
-        }
-        
-        loadVoices();
-        
-        // Initialize voice recognition
-        if ('webkitSpeechRecognition' in window) {
-            recognition = new webkitSpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = 'en-US';
+        // ========== VOICE ASSISTANCE FUNCTIONS ==========
+        function initializeVoiceAssistant() {
+            speechSynthesis = window.speechSynthesis;
             
-            recognition.onstart = function() {
-                console.log('Voice recognition started');
-                isListening = true;
-                voiceBtn.classList.add('listening');
-                voiceStatus.style.display = 'block';
-            };
+            function loadVoices() {
+                voices = speechSynthesis.getVoices();
+                console.log('Available voices:', voices.length);
+            }
             
-            recognition.onresult = function(event) {
-                const transcript = event.results[0][0].transcript;
-                console.log('Voice input:', transcript);
-                userInput.value = transcript;
+            if (speechSynthesis.onvoiceschanged !== undefined) {
+                speechSynthesis.onvoiceschanged = loadVoices;
+            }
+            
+            loadVoices();
+            
+            if ('webkitSpeechRecognition' in window) {
+                recognition = new webkitSpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
                 
-                setTimeout(() => {
-                    const message = userInput.value.trim();
-                    if (message !== '') {
-                        addUserMessage(message);
-                        userInput.value = '';
-                        sendMessageToBot(message);
+                recognition.onstart = function() {
+                    console.log('Voice recognition started');
+                    isListening = true;
+                    voiceBtn.classList.add('listening');
+                    voiceStatus.style.display = 'block';
+                };
+                
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript;
+                    console.log('Voice input:', transcript);
+                    userInput.value = transcript;
+                    
+                    setTimeout(() => {
+                        const message = userInput.value.trim();
+                        if (message !== '') {
+                            addUserMessage(message);
+                            userInput.value = '';
+                            sendMessageToBot(message);
+                        }
+                    }, 500);
+                };
+                
+                recognition.onend = function() {
+                    console.log('Voice recognition ended');
+                    isListening = false;
+                    voiceBtn.classList.remove('listening');
+                    voiceStatus.style.display = 'none';
+                };
+                
+                recognition.onerror = function(event) {
+                    console.error('Voice recognition error:', event.error);
+                    isListening = false;
+                    voiceBtn.classList.remove('listening');
+                    voiceStatus.style.display = 'none';
+                    
+                    if (event.error === 'not-allowed') {
+                        addBotMessage("Please allow microphone access to use voice input.");
                     }
-                }, 500);
-            };
-            
-            recognition.onend = function() {
-                console.log('Voice recognition ended');
-                isListening = false;
-                voiceBtn.classList.remove('listening');
-                voiceStatus.style.display = 'none';
-            };
-            
-            recognition.onerror = function(event) {
-                console.error('Voice recognition error:', event.error);
-                isListening = false;
-                voiceBtn.classList.remove('listening');
-                voiceStatus.style.display = 'none';
-                
-                if (event.error === 'not-allowed') {
-                    addBotMessage("Please allow microphone access to use voice input.");
-                }
-            };
-        } else {
-            console.log('Voice recognition not supported');
-            voiceBtn.style.display = 'none';
-        }
-    }
-    
-    function speakText(text) {
-        if (!voiceAssistantEnabled || !speechSynthesis) return;
-        
-        // Stop any ongoing speech
-        speechSynthesis.cancel();
-        
-        const utterance = new SpeechSynthesisUtterance(text);
-        
-        // Select a voice (prefer female voices for better user experience)
-        const preferredVoices = voices.filter(voice => 
-            voice.lang.includes('en') && 
-            (voice.name.includes('Female') || voice.name.includes('Samantha') || voice.name.includes('Karen'))
-        );
-        
-        if (preferredVoices.length > 0) {
-            utterance.voice = preferredVoices[0];
-        } else if (voices.length > 0) {
-            utterance.voice = voices[0];
-        }
-        
-        utterance.rate = 0.9;
-        utterance.pitch = 1;
-        utterance.volume = 0.8;
-        
-        utterance.onstart = function() {
-            console.log('Speech started');
-        };
-        
-        utterance.onend = function() {
-            console.log('Speech ended');
-        };
-        
-        utterance.onerror = function(event) {
-            console.error('Speech error:', event);
-        };
-        
-        speechSynthesis.speak(utterance);
-    }
-    
-    function toggleVoiceAssistant() {
-        voiceAssistantEnabled = !voiceAssistantEnabled;
-        
-        if (voiceAssistantEnabled) {
-            console.log('Voice assistant enabled');
-            voiceToggleBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
-            voiceToggleBtn.classList.remove('muted');
-            addBotMessage("Voice assistant enabled 🔊");
-            
-            // Speak the welcome message
-            speakText("Voice assistant is now enabled.");
-        } else {
-            console.log('Voice assistant disabled');
-            voiceToggleBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
-            voiceToggleBtn.classList.add('muted');
-            addBotMessage("Voice assistant muted 🔇");
-            
-            // Stop any ongoing speech
-            if (speechSynthesis) {
-                speechSynthesis.cancel();
+                };
+            } else {
+                console.log('Voice recognition not supported');
+                voiceBtn.style.display = 'none';
             }
         }
         
-        // Save preference to localStorage
-        localStorage.setItem('voiceAssistantEnabled', voiceAssistantEnabled);
-    }
-    
-    function startVoiceInput() {
-        if (!recognition) {
-            addBotMessage("Voice input is not supported in your browser.");
-            return;
+        function speakText(text) {
+            if (!voiceAssistantEnabled || !speechSynthesis) return;
+            
+            speechSynthesis.cancel();
+            
+            const utterance = new SpeechSynthesisUtterance(text);
+            
+            const preferredVoices = voices.filter(voice => 
+                voice.lang.includes('en') && 
+                (voice.name.includes('Female') || voice.name.includes('Samantha') || voice.name.includes('Karen'))
+            );
+            
+            if (preferredVoices.length > 0) {
+                utterance.voice = preferredVoices[0];
+            } else if (voices.length > 0) {
+                utterance.voice = voices[0];
+            }
+            
+            utterance.rate = 0.9;
+            utterance.pitch = 1;
+            utterance.volume = 0.8;
+            
+            utterance.onstart = function() {
+                console.log('Speech started');
+            };
+            
+            utterance.onend = function() {
+                console.log('Speech ended');
+            };
+            
+            utterance.onerror = function(event) {
+                console.error('Speech error:', event);
+            };
+            
+            speechSynthesis.speak(utterance);
         }
         
-        if (isListening) {
-            recognition.stop();
-        } else {
-            recognition.start();
+        function toggleVoiceAssistant() {
+            voiceAssistantEnabled = !voiceAssistantEnabled;
+            
+            if (voiceAssistantEnabled) {
+                console.log('Voice assistant enabled');
+                voiceToggleBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+                voiceToggleBtn.classList.remove('muted');
+                addBotMessage("Voice assistant enabled 🔊");
+                speakText("Voice assistant is now enabled.");
+            } else {
+                console.log('Voice assistant disabled');
+                voiceToggleBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                voiceToggleBtn.classList.add('muted');
+                addBotMessage("Voice assistant muted 🔇");
+                if (speechSynthesis) {
+                    speechSynthesis.cancel();
+                }
+            }
+            
+            localStorage.setItem('voiceAssistantEnabled', voiceAssistantEnabled);
         }
-    }
+        
+        function startVoiceInput() {
+            if (!recognition) {
+                addBotMessage("Voice input is not supported in your browser.");
+                return;
+            }
+            
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        }
 
-    // ========== FIXED MESSAGE HANDLER ==========
-    function sendMessageToBot(message) {
-        // Show typing indicator
-        typingIndicator.style.display = 'block';
-        scrollToBottom();
-        
-        console.log('💬 Sending:', message);
-        
-        // FIXED: Properly encode parameters
-        const params = new URLSearchParams({
-            action: 'message',
-            message: message,
-            timestamp: Date.now()
-        });
-        
-        fetch(`${SCRIPT_URL}?${params}`)
+        // ========== MESSAGE HANDLER ==========
+        function sendMessageToBot(message) {
+            typingIndicator.style.display = 'block';
+            scrollToBottom();
+            
+            console.log('💬 Sending:', message);
+            
+            // FIXED: Use POST request instead of GET
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'message',
+                    message: message,
+                    timestamp: Date.now().toString()
+                })
+            })
             .then(response => {
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
@@ -1098,10 +1092,8 @@
                 console.log('✅ Response:', data);
                 
                 if (data.response) {
-                    // Only show appointment button, NOT the form automatically
                     addBotMessage(data.response, data.showAppointmentForm);
                     
-                    // Speak the response if voice assistant is enabled
                     if (voiceAssistantEnabled) {
                         speakText(data.response.replace(/<[^>]*>/g, ''));
                     }
@@ -1131,28 +1123,28 @@
                     speakText(fallbackMessage);
                 }
             });
-    }
+        }
 
-    // ========== APPOINTMENT BOOKING FUNCTIONS ==========
-    function submitAppointment(formData) {
-        return new Promise((resolve, reject) => {
-            // Create URLSearchParams with all form data
-            const params = new URLSearchParams({
-                action: 'bookAppointment',
-                timestamp: Date.now()
-            });
-            
-            // Add all form fields
-            Object.keys(formData).forEach(key => {
-                params.append(key, formData[key]);
-            });
-            
-            console.log('📤 Submitting appointment:', Object.keys(formData));
-            
-            fetch(`${SCRIPT_URL}?${params}`)
+        // ========== APPOINTMENT BOOKING FUNCTIONS ==========
+        function submitAppointment(formData) {
+            return new Promise((resolve, reject) => {
+                console.log('📤 Submitting appointment:', Object.keys(formData));
+                
+                // FIXED: Use POST request instead of GET
+                fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        action: 'bookAppointment',
+                        timestamp: Date.now().toString(),
+                        ...formData
+                    })
+                })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Network response was not ok');
+                        throw new Error('Network response was not ok: ' + response.status);
                     }
                     return response.json();
                 })
@@ -1164,488 +1156,518 @@
                     console.error('❌ Appointment error:', error);
                     reject(error);
                 });
-        });
-    }
-
-    function rescheduleAppointment(formData) {
-        return new Promise((resolve, reject) => {
-            // Create URLSearchParams with all form data
-            const params = new URLSearchParams({
-                action: 'rescheduleAppointment',
-                timestamp: Date.now()
             });
-            
-            // Add all form fields
-            Object.keys(formData).forEach(key => {
-                params.append(key, formData[key]);
-            });
-            
-            console.log('📤 Rescheduling appointment:', Object.keys(formData));
-            
-            fetch(`${SCRIPT_URL}?${params}`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('✅ Reschedule response:', data);
-                    resolve(data);
-                })
-                .catch(error => {
-                    console.error('❌ Reschedule error:', error);
-                    reject(error);
-                });
+        }
+
+        function rescheduleAppointment(formData) {
+    return new Promise((resolve, reject) => {
+        console.log('📤 Starting reschedule request...');
+        console.log('📋 Form data for reschedule:', formData);
+        
+        // Validate required fields
+        if (!formData.referenceId || !formData.email || !formData.date || !formData.time) {
+            reject(new Error('Missing required fields: referenceId, email, date, time'));
+            return;
+        }
+        
+        // FIXED: Use the correct parameter names that the server expects
+        const requestData = new URLSearchParams({
+            action: 'rescheduleAppointment',
+            timestamp: Date.now().toString(),
+            referenceId: formData.referenceId,
+            email: formData.email,
+            newDate: formData.date,      // Make sure this matches server expectation
+            newTime: formData.time,      // Make sure this matches server expectation
+            duration: formData.duration || '60',
+            reason: formData.reason || 'Not specified'
         });
-    }
-
-    // ========== CHAT FUNCTIONS ==========
-    function addUserMessage(message) {
-        const messageElement = document.createElement('div');
-        messageElement.className = 'message user-message user';
         
-        messageElement.innerHTML = `
-            <div class="message-content">${sanitizeInput(message)}</div>
-            <div class="avatar user-avatar">
-                <i class="fas fa-user"></i>
-            </div>
-        `;
+        console.log('📦 Sending reschedule data:', requestData.toString());
         
-        chatMessages.appendChild(messageElement);
-        scrollToBottom();
-    }
-
-    function addBotMessage(message, showAppointmentButton = false) {
-        const messageElement = document.createElement('div');
-        messageElement.className = 'message bot-message';
-        
-        // Convert URLs to clickable links
-        const messageWithLinks = message.replace(
-            /(https?:\/\/[^\s]+)/g, 
-            '<a href="$1" target="_blank" style="color: #2563eb; text-decoration: underline;">$1</a>'
-        );
-        
-        let appointmentButton = '';
-        if (showAppointmentButton) {
-            appointmentButton = `
-                <div class="quick-actions" style="margin-top: 10px;">
-                    <button class="quick-action-btn" onclick="showAppointmentForm()">
-                        <i class="fas fa-calendar-plus"></i> Book Appointment Now
-                    </button>
+        fetch(SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: requestData
+        })
+        .then(response => {
+            console.log('📡 Response status:', response.status, response.statusText);
+            if (!response.ok) {
+                throw new Error('Network response was not ok: ' + response.status);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('✅ Reschedule response received:', data);
+            
+            // Check if this is the default response (action not recognized)
+            if (data.received_action === 'rescheduleAppointment') {
+                throw new Error('Server did not recognize rescheduleAppointment action');
+            }
+            
+            if (data && typeof data === 'object') {
+                resolve(data);
+            } else {
+                throw new Error('Invalid response format from server');
+            }
+        })
+        .catch(error => {
+            console.error('❌ Reschedule request failed:', error);
+            reject(error);
+        });
+    });
+}
+        // ========== CHAT FUNCTIONS ==========
+        function addUserMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message user-message user';
+            
+            messageElement.innerHTML = `
+                <div class="message-content">${sanitizeInput(message)}</div>
+                <div class="avatar user-avatar">
+                    <i class="fas fa-user"></i>
                 </div>
             `;
-        }
-        
-        messageElement.innerHTML = `
-            <div class="avatar bot-avatar">
-                <img src="VECTORNEU LOGO.png" alt="Vectorneu Logo" class="logo-avatar" onerror="this.style.display='none'; this.parentElement.innerHTML='<i class=\\'fas fa-robot\\'></i>';">
-            </div>
-            <div class="message-content">
-                ${messageWithLinks}
-                ${appointmentButton}
-            </div>
-        `;
-        
-        chatMessages.appendChild(messageElement);
-        scrollToBottom();
-    }
-    
-    // ========== FORM HANDLING ==========
-    function showAppointmentForm() {
-        hideAllForms();
-        appointmentForm.classList.add('active');
-        initializeAppointmentForm();
-        scrollToBottom();
-        
-        // Speak instruction if voice assistant is enabled
-        if (voiceAssistantEnabled) {
-            speakText("I've opened the appointment form. Please fill in your details to book a meeting.");
-        }
-    }
-
-    function showRescheduleForm() {
-        hideAllForms();
-        rescheduleForm.classList.add('active');
-        initializeRescheduleForm();
-        scrollToBottom();
-        
-        // Speak instruction if voice assistant is enabled
-        if (voiceAssistantEnabled) {
-            speakText("I've opened the reschedule form. Please provide your reference ID and new preferred time.");
-        }
-    }
-
-    function hideAllForms() {
-        appointmentForm.classList.remove('active');
-        rescheduleForm.classList.remove('active');
-        bookingForm.reset();
-        rescheduleBookingForm.reset();
-        
-        // Reset form messages
-        document.getElementById('formLoading').style.display = 'none';
-        document.getElementById('successMessage').style.display = 'none';
-        document.getElementById('errorMessage').style.display = 'none';
-        document.getElementById('rescheduleLoading').style.display = 'none';
-        document.getElementById('rescheduleSuccessMessage').style.display = 'none';
-        document.getElementById('rescheduleErrorMessage').style.display = 'none';
-    }
-
-    function initializeAppointmentForm() {
-        const today = new Date();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        
-        const appointmentDate = document.getElementById('appointmentDate');
-        appointmentDate.min = tomorrow.toISOString().split('T')[0];
-        appointmentDate.value = tomorrow.toISOString().split('T')[0];
-        
-        document.getElementById('appointmentTime').value = '10:00';
-        document.getElementById('duration').value = '60';
-        
-        // Reset messages
-        document.getElementById('formLoading').style.display = 'none';
-        document.getElementById('successMessage').style.display = 'none';
-        document.getElementById('errorMessage').style.display = 'none';
-    }
-
-    function initializeRescheduleForm() {
-        const today = new Date();
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        
-        const rescheduleDate = document.getElementById('rescheduleDate');
-        rescheduleDate.min = tomorrow.toISOString().split('T')[0];
-        rescheduleDate.value = tomorrow.toISOString().split('T')[0];
-        
-        document.getElementById('rescheduleTime').value = '10:00';
-        document.getElementById('rescheduleDuration').value = '60';
-        
-        // Reset messages
-        document.getElementById('rescheduleLoading').style.display = 'none';
-        document.getElementById('rescheduleSuccessMessage').style.display = 'none';
-        document.getElementById('rescheduleErrorMessage').style.display = 'none';
-    }
-
-    // ========== EVENT LISTENERS ==========
-    chatBotIcon.addEventListener('click', function() {
-        chatContainer.classList.add('active');
-        chatBotIcon.style.display = 'none';
-        
-        if (chatMessages.children.length === 0) {
-            const welcomeMessage = "Hello! I'm VectorAI 🤖 I help with AI services and appointments. How can I assist you?";
-            addBotMessage(welcomeMessage);
             
-            // Speak welcome message if voice assistant is enabled
+            chatMessages.appendChild(messageElement);
+            scrollToBottom();
+        }
+
+        function addBotMessage(message, showAppointmentButton = false) {
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message bot-message';
+            
+            const messageWithLinks = message.replace(
+                /(https?:\/\/[^\s]+)/g, 
+                '<a href="$1" target="_blank" style="color: #2563eb; text-decoration: underline;">$1</a>'
+            );
+            
+            let appointmentButton = '';
+            if (showAppointmentButton) {
+                appointmentButton = `
+                    <div class="quick-actions" style="margin-top: 10px;">
+                        <button class="quick-action-btn" onclick="showAppointmentForm()">
+                            <i class="fas fa-calendar-plus"></i> Book Appointment Now
+                        </button>
+                    </div>
+                `;
+            }
+            
+            messageElement.innerHTML = `
+                <div class="avatar bot-avatar">
+                    <img src="VECTORNEU LOGO.png" alt="Vectorneu Logo" class="logo-avatar" onerror="this.style.display='none'; this.parentElement.innerHTML='<i class=\\'fas fa-robot\\'></i>';">
+                </div>
+                <div class="message-content">
+                    ${messageWithLinks}
+                    ${appointmentButton}
+                </div>
+            `;
+            
+            chatMessages.appendChild(messageElement);
+            scrollToBottom();
+        }
+        
+        // ========== FORM HANDLING ==========
+        function showAppointmentForm() {
+            hideAllForms();
+            appointmentForm.classList.add('active');
+            initializeAppointmentForm();
+            scrollToBottom();
+            
             if (voiceAssistantEnabled) {
-                speakText(welcomeMessage);
+                speakText("I've opened the appointment form. Please fill in your details to book a meeting.");
             }
         }
-    });
 
-    closeChat.addEventListener('click', function() {
-        chatContainer.classList.remove('active');
-        chatBotIcon.style.display = 'flex';
-        hideAllForms();
-        
-        // Stop any ongoing speech when closing chat
-        if (speechSynthesis) {
-            speechSynthesis.cancel();
-        }
-    });
-
-    refreshBtn.addEventListener('click', function() {
-        chatMessages.innerHTML = '';
-        hideAllForms();
-        const refreshMessage = "Hi there! Fresh start 👋 How can I help with Vectorneu's AI services?";
-        addBotMessage(refreshMessage);
-        
-        // Speak refresh message if voice assistant is enabled
-        if (voiceAssistantEnabled) {
-            speakText(refreshMessage);
-        }
-    });
-
-    sendBtn.addEventListener('click', sendMessage);
-    userInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter') sendMessage();
-    });
-
-    function sendMessage() {
-        const message = userInput.value.trim();
-        if (message === '') return;
-        
-        addUserMessage(message);
-        userInput.value = '';
-        sendMessageToBot(message);
-    }
-    
-    // Voice button event listener
-    voiceBtn.addEventListener('click', startVoiceInput);
-    
-    // Voice toggle button event listener
-    voiceToggleBtn.addEventListener('click', toggleVoiceAssistant);
-
-    // Quick actions
-    function quickAction(action) {
-        const messages = {
-            'appointment': "I want to book an appointment",
-            'reschedule': "I want to reschedule my appointment",
-            'services': "What services do you offer?",
-            'contact': "What's your contact information?"
-        };
-        
-        if (messages[action]) {
-            if (action === 'reschedule') {
-                showRescheduleForm();
-            } else {
-                addUserMessage(messages[action]);
-                sendMessageToBot(messages[action]);
+        function showRescheduleForm() {
+            hideAllForms();
+            rescheduleForm.classList.add('active');
+            initializeRescheduleForm();
+            scrollToBottom();
+            
+            if (voiceAssistantEnabled) {
+                speakText("I've opened the reschedule form. Please provide your reference ID and new preferred time.");
             }
         }
-    }
 
-    // Form submission - Booking
-    bookingForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const submitBtn = document.getElementById('submitBtn');
-        const formLoading = document.getElementById('formLoading');
-        const successMessage = document.getElementById('successMessage');
-        const errorMessage = document.getElementById('errorMessage');
-        
-        // Show loading
-        formLoading.style.display = 'block';
-        successMessage.style.display = 'none';
-        errorMessage.style.display = 'none';
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Booking...';
-        
-        const formData = {
-            fullName: document.getElementById('fullName').value.trim(),
-            email: document.getElementById('email').value.trim(),
-            companyName: document.getElementById('companyName').value.trim(),
-            purpose: document.getElementById('purpose').value,
-            date: document.getElementById('appointmentDate').value,
-            time: document.getElementById('appointmentTime').value,
-            duration: document.getElementById('duration').value,
-            additionalInfo: document.getElementById('additionalInfo').value.trim()
-        };
-        
-        console.log('📤 Form data:', formData);
-        
-        submitAppointment(formData)
-            .then(result => {
-                console.log('📋 Appointment result:', result);
-                formLoading.style.display = 'none';
+        function hideAllForms() {
+            appointmentForm.classList.remove('active');
+            rescheduleForm.classList.remove('active');
+            bookingForm.reset();
+            rescheduleBookingForm.reset();
+            
+            document.getElementById('formLoading').style.display = 'none';
+            document.getElementById('successMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+            document.getElementById('rescheduleLoading').style.display = 'none';
+            document.getElementById('rescheduleSuccessMessage').style.display = 'none';
+            document.getElementById('rescheduleErrorMessage').style.display = 'none';
+        }
+
+        function initializeAppointmentForm() {
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            const appointmentDate = document.getElementById('appointmentDate');
+            appointmentDate.min = tomorrow.toISOString().split('T')[0];
+            appointmentDate.value = tomorrow.toISOString().split('T')[0];
+            
+            document.getElementById('appointmentTime').value = '10:00';
+            document.getElementById('duration').value = '60';
+            
+            document.getElementById('formLoading').style.display = 'none';
+            document.getElementById('successMessage').style.display = 'none';
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        function initializeRescheduleForm() {
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            const rescheduleDate = document.getElementById('rescheduleDate');
+            rescheduleDate.min = tomorrow.toISOString().split('T')[0];
+            rescheduleDate.value = tomorrow.toISOString().split('T')[0];
+            
+            document.getElementById('rescheduleTime').value = '10:00';
+            document.getElementById('rescheduleDuration').value = '60';
+            
+            document.getElementById('rescheduleLoading').style.display = 'none';
+            document.getElementById('rescheduleSuccessMessage').style.display = 'none';
+            document.getElementById('rescheduleErrorMessage').style.display = 'none';
+        }
+
+        // ========== EVENT LISTENERS ==========
+        chatBotIcon.addEventListener('click', function() {
+            chatContainer.classList.add('active');
+            chatBotIcon.style.display = 'none';
+            
+            if (chatMessages.children.length === 0) {
+                const welcomeMessage = "Hello! I'm VectorAI 🤖 I help with AI services and appointments. How can I assist you?";
+                addBotMessage(welcomeMessage);
                 
-                if (result.success) {
-                    successMessage.textContent = result.message || 'Appointment booked successfully!';
-                    successMessage.style.display = 'block';
-                    
-                    setTimeout(() => {
-                        hideAllForms();
-                        showAppointmentSuccess(result, formData);
-                    }, 2000);
-                } else {
-                    errorMessage.textContent = result.message || 'Booking failed. Please try again.';
-                    errorMessage.style.display = 'block';
-                    
-                    // Show suggested slots if available
-                    if (result.suggestedSlots && result.suggestedSlots.length > 0) {
-                        addBotMessage("Here are some available times: " + 
-                            result.suggestedSlots.map(slot => slot.label).join(', '));
-                    }
+                if (voiceAssistantEnabled) {
+                    speakText(welcomeMessage);
                 }
-            })
-            .catch(error => {
-                console.error('❌ Form submission error:', error);
-                formLoading.style.display = 'none';
-                errorMessage.textContent = 'Network error. Please check your connection and try again.';
-                errorMessage.style.display = 'block';
-            })
-            .finally(() => {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fas fa-calendar-check"></i> Book Appointment';
-            });
-    });
-
-    // Form submission - Reschedule
-    rescheduleBookingForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        
-        const submitBtn = document.getElementById('rescheduleSubmitBtn');
-        const formLoading = document.getElementById('rescheduleLoading');
-        const successMessage = document.getElementById('rescheduleSuccessMessage');
-        const errorMessage = document.getElementById('rescheduleErrorMessage');
-        
-        // Show loading
-        formLoading.style.display = 'block';
-        successMessage.style.display = 'none';
-        errorMessage.style.display = 'none';
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rescheduling...';
-        
-        const formData = {
-            referenceId: document.getElementById('referenceId').value.trim(),
-            email: document.getElementById('rescheduleEmail').value.trim(),
-            date: document.getElementById('rescheduleDate').value,
-            time: document.getElementById('rescheduleTime').value,
-            duration: document.getElementById('rescheduleDuration').value,
-            reason: document.getElementById('rescheduleReason').value.trim()
-        };
-        
-        console.log('📤 Reschedule data:', formData);
-        
-        rescheduleAppointment(formData)
-            .then(result => {
-                console.log('📋 Reschedule result:', result);
-                formLoading.style.display = 'none';
-                
-                if (result.success) {
-                    successMessage.textContent = result.message || 'Appointment rescheduled successfully!';
-                    successMessage.style.display = 'block';
-                    
-                    setTimeout(() => {
-                        hideAllForms();
-                        showRescheduleSuccess(result, formData);
-                    }, 2000);
-                } else {
-                    errorMessage.textContent = result.message || 'Reschedule failed. Please try again.';
-                    errorMessage.style.display = 'block';
-                    
-                    // Show suggested slots if available
-                    if (result.suggestedSlots && result.suggestedSlots.length > 0) {
-                        addBotMessage("Here are some available times: " + 
-                            result.suggestedSlots.map(slot => slot.label).join(', '));
-                    }
-                }
-            })
-            .catch(error => {
-                console.error('❌ Reschedule error:', error);
-                formLoading.style.display = 'none';
-                errorMessage.textContent = 'Network error. Please check your connection and try again.';
-                errorMessage.style.display = 'block';
-            })
-            .finally(() => {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fas fa-calendar-alt"></i> Reschedule Appointment';
-            });
-    });
-
-    cancelAppointmentBtn.addEventListener('click', function() {
-        hideAllForms();
-        const cancelMessage = "No problem! Let me know if you need anything else. 😊";
-        addBotMessage(cancelMessage);
-        
-        // Speak cancel message if voice assistant is enabled
-        if (voiceAssistantEnabled) {
-            speakText(cancelMessage);
-        }
-    });
-
-    cancelRescheduleBtn.addEventListener('click', function() {
-        hideAllForms();
-        const cancelMessage = "No problem! Let me know if you need anything else. 😊";
-        addBotMessage(cancelMessage);
-        
-        // Speak cancel message if voice assistant is enabled
-        if (voiceAssistantEnabled) {
-            speakText(cancelMessage);
-        }
-    });
-
-    function showAppointmentSuccess(result, formData) {
-        const successMessage = `
-    ✅ <strong>Appointment Confirmed!</strong>
-    <br>📅 <strong>Date:</strong> ${formData.date} at ${formData.time} (${formData.duration} mins)
-    <br>📧 <strong>Email:</strong> ${formData.email}
-    ${result.meetLink ? `<br>🔗 <strong>Meeting:</strong> <a href="${result.meetLink}" target="_blank">Join Google Meet</a>` : ''}
-    ${result.appointmentId ? `<br>🆔 <strong>Reference ID:</strong> ${result.appointmentId}` : ''}
-        `.trim();
-        
-        addBotMessage(successMessage);
-        
-        // Speak success message if voice assistant is enabled
-        if (voiceAssistantEnabled) {
-            const spokenMessage = `Appointment confirmed for ${formData.date} at ${formData.time}. Check the chat for details.`;
-            speakText(spokenMessage);
-        }
-    }
-
-    function showRescheduleSuccess(result, formData) {
-        const successMessage = `
-    ✅ <strong>Appointment Rescheduled!</strong>
-    <br>📅 <strong>New Date:</strong> ${formData.date} at ${formData.time} (${formData.duration} mins)
-    <br>📧 <strong>Email:</strong> ${formData.email}
-    <br>🆔 <strong>Reference ID:</strong> ${formData.referenceId}
-    ${result.meetLink ? `<br>🔗 <strong>New Meeting:</strong> <a href="${result.meetLink}" target="_blank">Join Google Meet</a>` : ''}
-        `.trim();
-        
-        addBotMessage(successMessage);
-        
-        // Speak success message if voice assistant is enabled
-        if (voiceAssistantEnabled) {
-            const spokenMessage = `Appointment rescheduled for ${formData.date} at ${formData.time}. Check the chat for details.`;
-            speakText(spokenMessage);
-        }
-    }
-
-    // ========== UTILITY FUNCTIONS ==========
-    function sanitizeInput(input) {
-        const div = document.createElement('div');
-        div.textContent = input;
-        return div.innerHTML;
-    }
-
-    function scrollToBottom() {
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-
-    // ========== TEST FUNCTIONS ==========
-    function testConnection() {
-        console.log('🧪 Testing connection...');
-        
-        const params = new URLSearchParams({
-            action: 'test',
-            timestamp: Date.now()
+            }
         });
+
+        closeChat.addEventListener('click', function() {
+            chatContainer.classList.remove('active');
+            chatBotIcon.style.display = 'flex';
+            hideAllForms();
+            
+            if (speechSynthesis) {
+                speechSynthesis.cancel();
+            }
+        });
+
+        refreshBtn.addEventListener('click', function() {
+            chatMessages.innerHTML = '';
+            hideAllForms();
+            const refreshMessage = "Hi there! Fresh start 👋 How can I help with Vectorneu's AI services?";
+            addBotMessage(refreshMessage);
+            
+            if (voiceAssistantEnabled) {
+                speakText(refreshMessage);
+            }
+        });
+
+        sendBtn.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        function sendMessage() {
+            const message = userInput.value.trim();
+            if (message === '') return;
+            
+            addUserMessage(message);
+            userInput.value = '';
+            sendMessageToBot(message);
+        }
         
-        fetch(`${SCRIPT_URL}?${params}`)
+        voiceBtn.addEventListener('click', startVoiceInput);
+        voiceToggleBtn.addEventListener('click', toggleVoiceAssistant);
+
+        // Quick actions
+        function quickAction(action) {
+            const messages = {
+                'appointment': "I want to book an appointment",
+                'reschedule': "I want to reschedule my appointment",
+                'services': "What services do you offer?",
+                'contact': "What's your contact information?"
+            };
+            
+            if (messages[action]) {
+                if (action === 'reschedule') {
+                    showRescheduleForm();
+                } else {
+                    addUserMessage(messages[action]);
+                    sendMessageToBot(messages[action]);
+                }
+            }
+        }
+
+        // Form submission - Booking
+        bookingForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const formLoading = document.getElementById('formLoading');
+            const successMessage = document.getElementById('successMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            
+            formLoading.style.display = 'block';
+            successMessage.style.display = 'none';
+            errorMessage.style.display = 'none';
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Booking...';
+            
+            const formData = {
+                fullName: document.getElementById('fullName').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                companyName: document.getElementById('companyName').value.trim(),
+                purpose: document.getElementById('purpose').value,
+                date: document.getElementById('appointmentDate').value,
+                time: document.getElementById('appointmentTime').value,
+                duration: document.getElementById('duration').value,
+                additionalInfo: document.getElementById('additionalInfo').value.trim()
+            };
+            
+            console.log('📤 Form data:', formData);
+            
+            submitAppointment(formData)
+                .then(result => {
+                    console.log('📋 Appointment result:', result);
+                    formLoading.style.display = 'none';
+                    
+                    if (result.success) {
+                        successMessage.textContent = result.message || 'Appointment booked successfully!';
+                        successMessage.style.display = 'block';
+                        
+                        setTimeout(() => {
+                            hideAllForms();
+                            showAppointmentSuccess(result, formData);
+                        }, 2000);
+                    } else {
+                        errorMessage.textContent = result.message || 'Booking failed. Please try again.';
+                        errorMessage.style.display = 'block';
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ Form submission error:', error);
+                    formLoading.style.display = 'none';
+                    errorMessage.textContent = 'Network error. Please check your connection and try again.';
+                    errorMessage.style.display = 'block';
+                })
+                .finally(() => {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-calendar-check"></i> Book Appointment';
+                });
+        });
+
+        // Form submission - Reschedule
+        // Form submission - Reschedule (UPDATED)
+rescheduleBookingForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const submitBtn = document.getElementById('rescheduleSubmitBtn');
+    const formLoading = document.getElementById('rescheduleLoading');
+    const successMessage = document.getElementById('rescheduleSuccessMessage');
+    const errorMessage = document.getElementById('rescheduleErrorMessage');
+    
+    formLoading.style.display = 'block';
+    successMessage.style.display = 'none';
+    errorMessage.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Rescheduling...';
+    
+    const formData = {
+        referenceId: document.getElementById('referenceId').value.trim(),
+        email: document.getElementById('rescheduleEmail').value.trim(),
+        date: document.getElementById('rescheduleDate').value,
+        time: document.getElementById('rescheduleTime').value,
+        duration: document.getElementById('rescheduleDuration').value,
+        reason: document.getElementById('rescheduleReason').value.trim()
+    };
+    
+    console.log('📤 Reschedule form data:', formData);
+    
+    // Validate required fields
+    if (!formData.referenceId || !formData.email || !formData.date || !formData.time) {
+        formLoading.style.display = 'none';
+        errorMessage.textContent = 'Please fill all required fields (Reference ID, Email, Date, Time)';
+        errorMessage.style.display = 'block';
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-calendar-alt"></i> Reschedule Appointment';
+        return;
+    }
+    
+    rescheduleAppointment(formData)
+        .then(result => {
+            console.log('📋 Reschedule result:', result);
+            formLoading.style.display = 'none';
+            
+            if (result.success) {
+                successMessage.textContent = result.message || 'Appointment rescheduled successfully!';
+                successMessage.style.display = 'block';
+                
+                setTimeout(() => {
+                    hideAllForms();
+                    showRescheduleSuccess(result, formData);
+                }, 2000);
+            } else {
+                errorMessage.textContent = result.message || 'Reschedule failed. Please try again.';
+                errorMessage.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('❌ Reschedule error:', error);
+            formLoading.style.display = 'none';
+            
+            if (error.message.includes('did not recognize')) {
+                errorMessage.textContent = 'Server error: Reschedule feature not available. Please contact support.';
+            } else {
+                errorMessage.textContent = 'Reschedule failed: ' + error.message;
+            }
+            errorMessage.style.display = 'block';
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fas fa-calendar-alt"></i> Reschedule Appointment';
+        });
+});
+
+        function showAppointmentSuccess(result, formData) {
+            const successMessage = `
+                ✅ <strong>Appointment Confirmed Successfully!</strong>
+                <br>📅 <strong>Date:</strong> ${formData.date} at ${formData.time} (${formData.duration} mins)
+                <br>📧 <strong>Email:</strong> ${formData.email}
+                ${result.meetLink ? `<br>🔗 <strong>Meeting:</strong> <a href="${result.meetLink}" target="_blank">Join Google Meet</a>` : ''}
+                ${result.appointmentId ? `<br>🆔 <strong>Reference ID:</strong> ${result.appointmentId}` : ''}
+                <br>📨 <strong>Status:</strong> ${result.emailSent ? 'Confirmation email sent ✅' : 'Email notification failed ❌'}
+            `.trim();
+            
+            addBotMessage(successMessage);
+            
+            if (voiceAssistantEnabled) {
+                const spokenMessage = `Appointment confirmed for ${formData.date} at ${formData.time}. ${result.emailSent ? 'Confirmation email has been sent.' : 'But email notification failed.'}`;
+                speakText(spokenMessage);
+            }
+        }
+
+        function showRescheduleSuccess(result, formData) {
+            let successMessage = '';
+            
+            if (result.success) {
+                if (result.emailSent) {
+                    successMessage = `
+                        🎉 <strong>Appointment Rescheduled Successfully!</strong>
+                        <br>✅ <strong>Status:</strong> Confirmation email sent successfully
+                        <br>📅 <strong>New Date:</strong> ${formData.date} at ${formData.time}
+                        <br>📧 <strong>Email:</strong> ${formData.email}
+                        <br>🆔 <strong>Reference ID:</strong> ${formData.referenceId}
+                        ${result.meetLink ? `<br>🔗 <strong>Meeting Link:</strong> <a href="${result.meetLink}" target="_blank">Join Google Meet</a>` : ''}
+                        <br>💫 <strong>Check your email for confirmation details</strong>
+                    `.trim();
+                } else {
+                    successMessage = `
+                        ⚠️ <strong>Appointment Rescheduled - Email Failed</strong>
+                        <br>✅ <strong>Reschedule:</strong> Successful
+                        <br>❌ <strong>Email:</strong> Failed to send confirmation
+                        <br>📅 <strong>New Date:</strong> ${formData.date} at ${formData.time}
+                        <br>📧 <strong>Email:</strong> ${formData.email}
+                        <br>🆔 <strong>Reference ID:</strong> ${formData.referenceId}
+                        ${result.meetLink ? `<br>🔗 <strong>Meeting Link:</strong> <a href="${result.meetLink}" target="_blank">Join Google Meet</a>` : ''}
+                        <br>📞 <strong>Please contact us for confirmation:</strong> ${SENDER_EMAIL}
+                    `.trim();
+                }
+            } else {
+                successMessage = `
+                    ❌ <strong>Reschedule Failed</strong>
+                    <br>${result.message || 'Unknown error occurred'}
+                    <br>📧 <strong>Please contact:</strong> ${SENDER_EMAIL}
+                    <br>📞 <strong>Phone:</strong> +91 9488005400
+                `.trim();
+            }
+            
+            addBotMessage(successMessage);
+            
+            if (voiceAssistantEnabled) {
+                if (result.success) {
+                    if (result.emailSent) {
+                        speakText(`Appointment rescheduled successfully for ${formData.date} at ${formData.time}. Confirmation email has been sent to your inbox.`);
+                    } else {
+                        speakText(`Appointment rescheduled but email confirmation failed. Please check your appointment details in the chat.`);
+                    }
+                } else {
+                    speakText("Sorry, the reschedule failed. Please try again or contact our support team.");
+                }
+            }
+        }
+
+        // ========== UTILITY FUNCTIONS ==========
+        function sanitizeInput(input) {
+            const div = document.createElement('div');
+            div.textContent = input;
+            return div.innerHTML;
+        }
+
+        function scrollToBottom() {
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('VectorAI initialized');
+            initializeVoiceAssistant();
+            
+            const savedPreference = localStorage.getItem('voiceAssistantEnabled');
+            if (savedPreference !== null) {
+                voiceAssistantEnabled = savedPreference === 'true';
+                if (voiceAssistantEnabled) {
+                    voiceToggleBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
+                    voiceToggleBtn.classList.remove('muted');
+                } else {
+                    voiceToggleBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
+                    voiceToggleBtn.classList.add('muted');
+                }
+            }
+            
+            // Add cancel button event listeners
+            document.getElementById('cancelAppointmentBtn').addEventListener('click', hideAllForms);
+            document.getElementById('cancelRescheduleBtn').addEventListener('click', hideAllForms);
+            
+            setTimeout(() => {
+                testConnection();
+            }, 1000);
+        });
+
+        function testConnection() {
+            console.log('🧪 Testing connection...');
+            
+            // FIXED: Use POST request instead of GET
+            fetch(SCRIPT_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: new URLSearchParams({
+                    action: 'test',
+                    timestamp: Date.now().toString()
+                })
+            })
             .then(response => response.json())
             .then(data => {
                 console.log('✅ Connection test:', data);
-                // Don't show any message for connection test
             })
             .catch(error => {
                 console.error('❌ Connection test failed:', error);
-                // Don't show error message to user
             });
-    }
-
-    // Initialize
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('VectorAI initialized');
-        initializeVoiceAssistant();
-        
-        // Load voice assistant preference from localStorage
-        const savedPreference = localStorage.getItem('voiceAssistantEnabled');
-        if (savedPreference !== null) {
-            voiceAssistantEnabled = savedPreference === 'true';
-            if (voiceAssistantEnabled) {
-                voiceToggleBtn.innerHTML = '<i class="fas fa-volume-up"></i>';
-                voiceToggleBtn.classList.remove('muted');
-            } else {
-                voiceToggleBtn.innerHTML = '<i class="fas fa-volume-mute"></i>';
-                voiceToggleBtn.classList.add('muted');
-            }
         }
-        
-        // Test connection on load (silently)
-        setTimeout(() => {
-            testConnection();
-        }, 1000);
-    });
-</script>
+    </script>
 </body>
 </html>

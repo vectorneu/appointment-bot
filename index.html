@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Vectorneu - AI Solutions</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
     <style>
         :root {
             --primary: #2563eb;
@@ -893,7 +892,7 @@
 
     <script>
         // ========== CONFIGURATION ==========
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzjMNBIV22PFRqB1Inm6wJkulOifAWCHoHuFKScnIww5JdupOhmNhaa2L_-RHaFKW4TQg/exec';
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwq09pAdMJer1i__UxWKRReg_53mBdOlu1AlIPdMl40N4KtIKYJCQX4DiEnuNaf2u3bfw/exec';
         const SENDER_EMAIL = 'vectorneu05@gmail.com';
         
         // DOM Elements
@@ -1071,16 +1070,16 @@
             
             // FIXED: Use POST request instead of GET
             fetch(SCRIPT_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams({
-                    action: 'message',
-                    message: message,
-                    timestamp: Date.now().toString()
-                })
-            })
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+        action: 'message',
+        message: message,
+        timestamp: Date.now().toString()
+    })
+})
             .then(response => {
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
